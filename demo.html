@@ -1,3 +1,104 @@
+<!--
+  ============================================================
+  CAMPUS CONNECT — STATIC DEMO / SHOWCASE PAGE
+  ============================================================
+
+  PUBLIC URL: https://raybedford.github.io/campus-connect/
+
+  PURPOSE:
+    Weekly progress showcase for the CTU course project.
+    Share this URL with your professor and group each week.
+    Updates go live automatically when you push to main.
+
+  HOW TO UPDATE WEEKLY:
+    1. Edit this file (demo.html)
+    2. git add demo.html
+    3. git commit -m "Week N progress update"
+    4. git push origin main
+    5. GitHub Pages auto-deploys in ~60 seconds
+
+  ============================================================
+  PAGE STRUCTURE (top to bottom):
+  ============================================================
+
+  LINE ~770   NAV            Fixed top navigation bar with section links
+  LINE ~782   HERO           Main landing section — title, subtitle, CTA buttons
+  LINE ~846   PHONE MOCKUP   Fake phone showing a chat conversation
+  LINE ~881   STATS BAR      4 project stats (files, lines, endpoints, tables)
+  LINE ~902   FEATURES       6 feature cards in a grid
+  LINE ~944   SECURITY       E2EE encryption explanation + code flow visual
+  LINE ~994   TECH STACK     12-item grid of technologies used
+  LINE ~1053  ARCHITECTURE   3-layer diagram (Client → API → Database)
+  LINE ~1082  TIMELINE       5-week build schedule with progress indicators
+  LINE ~1117  FOOTER         School name + GitHub link
+  LINE ~1126  SCRIPT         Scroll-reveal animation (IntersectionObserver)
+
+  ============================================================
+  WEEKLY UPDATE GUIDE:
+  ============================================================
+
+  WEEK 1 — After completing Foundation + Auth:
+    - Update STATS BAR numbers if they changed
+    - In TIMELINE section, add a status badge to Week 1:
+        <span class="week-done">COMPLETE</span>
+      (see CSS for .week-done styling below)
+    - Optionally add a "Week 1 Demo" section with screenshots
+
+  WEEK 2 — After completing Conversations + Frontend:
+    - Update STATS BAR (file count, lines of code, etc.)
+    - Mark Week 2 as COMPLETE in TIMELINE
+    - Update PHONE MOCKUP messages if desired
+    - Consider adding frontend screenshots
+
+  WEEK 3 — After completing Real-Time Messaging:
+    - Update STATS BAR
+    - Mark Week 3 as COMPLETE in TIMELINE
+    - Optionally add a video/gif of live messaging demo
+
+  WEEK 4 — After completing E2EE + File Sharing:
+    - Update STATS BAR
+    - Mark Week 4 as COMPLETE in TIMELINE
+    - Update SECURITY section with real encrypted payload examples
+
+  WEEK 5 — Final submission:
+    - Update STATS BAR with final numbers
+    - Mark Week 5 as COMPLETE in TIMELINE
+    - Add final demo screenshots/video
+    - Add team member credits to FOOTER if desired
+
+  ============================================================
+  STYLING REFERENCE:
+  ============================================================
+
+  COLORS (CSS variables in :root):
+    --gold: #CFB87C        Primary accent (buttons, headings, icons)
+    --gold-dim: #A1865B    Darker gold (gradients, secondary accents)
+    --gold-bright: #e0cc96 Hover state gold
+    --black: #0a0a0a       Page background
+    --black-card: #151515  Card backgrounds
+    --black-border: #1e1e1e Card borders
+    --cream: #f5f0e8       Primary text
+    --cream-dim: #a89f8b   Secondary/muted text
+
+  FONTS:
+    --serif: 'Instrument Serif'  Section titles, hero heading
+    --sans: 'DM Sans'            Body text, labels, buttons
+    --mono: 'JetBrains Mono'     Code/crypto values
+
+  CLASSES:
+    .reveal              Scroll-triggered fade-in animation
+    .reveal-delay-1..5   Staggered animation delays (0.1s increments)
+    .btn-gold            Primary gold gradient button
+    .btn-outline         Ghost/outline button
+    .section-label       Small uppercase gold label above titles
+    .section-title       Large serif section heading (use <em> for gold text)
+    .section-desc        Paragraph below section title
+    .feature-card        Card with hover effect + gold top border
+    .stat / .stat-number / .stat-label   Stats bar items
+    .timeline-item       Timeline entry with dot + content
+
+  ============================================================
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -710,6 +811,39 @@ section { padding: 7rem 2rem; }
   line-height: 1.55;
 }
 
+/* Week completion badge — add <span class="week-done">COMPLETE</span> next to .timeline-week text */
+.week-done {
+  display: inline-block;
+  margin-left: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0a0a0a;
+  background: var(--gold);
+  border-radius: 100px;
+  vertical-align: middle;
+}
+
+/* In-progress badge — use <span class="week-progress">IN PROGRESS</span> */
+.week-progress {
+  display: inline-block;
+  margin-left: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: transparent;
+  border: 1px solid var(--gold);
+  border-radius: 100px;
+  vertical-align: middle;
+}
+
 /* ===== Footer ===== */
 footer {
   padding: 4rem 2rem;
@@ -766,7 +900,9 @@ footer {
 </head>
 <body>
 
-<!-- Navigation -->
+<!-- ============================================================
+     NAV — Fixed top bar. Edit links if you add/remove sections.
+     ============================================================ -->
 <nav>
   <div class="nav-logo">Campus Connect</div>
   <div class="nav-links">
@@ -778,7 +914,9 @@ footer {
   </div>
 </nav>
 
-<!-- Hero -->
+<!-- ============================================================
+     HERO — Main landing. Edit subtitle text as project evolves.
+     ============================================================ -->
 <section class="hero">
   <div class="hero-badge reveal">
     <span class="dot"></span>
@@ -842,7 +980,11 @@ footer {
   </div>
 </section>
 
-<!-- Phone mockup -->
+<!-- ============================================================
+     PHONE MOCKUP — Fake chat UI. Edit .mock-msg divs to change
+     the conversation. Use class="sent" or class="received".
+     Add <div class="sender">Name</div> inside received messages.
+     ============================================================ -->
 <div class="phone-section">
   <div class="phone-frame reveal">
     <div class="phone-notch"></div>
@@ -877,7 +1019,12 @@ footer {
 
 <div class="divider"></div>
 
-<!-- Stats -->
+<!-- ============================================================
+     STATS BAR — Update these numbers each week!
+     To get current counts, run:
+       find . -name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.css' -o -name '*.html' | wc -l
+       wc -l $(find . -name '*.py' -o -name '*.ts' -o -name '*.tsx')
+     ============================================================ -->
 <div class="stats-bar">
   <div class="stat reveal">
     <div class="stat-number">97</div>
@@ -899,7 +1046,10 @@ footer {
 
 <div class="divider"></div>
 
-<!-- Features -->
+<!-- ============================================================
+     FEATURES — 6 feature cards. Add/remove cards as needed.
+     Each card: .feature-card > .feature-icon + h3 + p
+     ============================================================ -->
 <section id="features" class="features">
   <div class="section-label reveal">Core Features</div>
   <div class="section-title reveal">Built for how students<br><em>actually communicate</em></div>
@@ -941,7 +1091,11 @@ footer {
 
 <div class="divider"></div>
 
-<!-- Encryption deep dive -->
+<!-- ============================================================
+     SECURITY — E2EE explanation. Left side = text, right = code.
+     Update .crypto-value spans with real encrypted output from
+     your database after Week 4 to show actual encrypted payloads.
+     ============================================================ -->
 <section id="security">
   <div class="encryption-section">
     <div>
@@ -991,7 +1145,10 @@ footer {
 
 <div class="divider"></div>
 
-<!-- Tech stack -->
+<!-- ============================================================
+     TECH STACK — 12-item grid. Add/remove .tech-item divs.
+     Each item: .tech-item > .tech-name + .tech-role
+     ============================================================ -->
 <section id="tech" class="tech-section">
   <div class="section-label reveal">Technology</div>
   <div class="section-title reveal" style="margin: 0 auto;">Engineered with<br><em>modern tools</em></div>
@@ -1050,7 +1207,10 @@ footer {
 
 <div class="divider"></div>
 
-<!-- Architecture -->
+<!-- ============================================================
+     ARCHITECTURE — 3-layer diagram. Edit .arch-layer-tech text
+     to reflect any architecture changes.
+     ============================================================ -->
 <section id="architecture" class="arch-section">
   <div class="section-label reveal">System Design</div>
   <div class="section-title reveal" style="margin: 0 auto;"><em>Architecture</em> overview</div>
@@ -1079,7 +1239,18 @@ footer {
 
 <div class="divider"></div>
 
-<!-- Timeline -->
+<!-- ============================================================
+     TIMELINE — Weekly progress tracker. UPDATE THIS EACH WEEK!
+
+     To mark a week complete, add badge after the week text:
+       <div class="timeline-week">Week 1 <span class="week-done">COMPLETE</span></div>
+
+     To mark current week in progress:
+       <div class="timeline-week">Week 2 <span class="week-progress">IN PROGRESS</span></div>
+
+     You can also update the .timeline-desc with what was
+     actually accomplished vs. what was planned.
+     ============================================================ -->
 <section id="timeline" class="timeline-section">
   <div class="section-label reveal">Build Schedule</div>
   <div class="section-title reveal">Five-week<br><em>development plan</em></div>
@@ -1114,7 +1285,10 @@ footer {
   </div>
 </section>
 
-<!-- Footer -->
+<!-- ============================================================
+     FOOTER — School name + GitHub link.
+     Add team member names here when ready.
+     ============================================================ -->
 <footer>
   <div class="footer-logo">Campus Connect</div>
   <p class="footer-text">
