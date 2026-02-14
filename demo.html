@@ -27,7 +27,7 @@
   LINE ~881   STATS BAR      4 project stats (files, lines, endpoints, tables)
   LINE ~902   FEATURES       6 feature cards in a grid
   LINE ~944   SECURITY       E2EE encryption explanation + code flow visual
-  LINE ~994   TECH STACK     12-item grid of technologies used
+  LINE ~994   TECH STACK     12-item grid of technologies (Node.js stack)
   LINE ~1053  ARCHITECTURE   3-layer diagram (Client → API → Database)
   LINE ~1082  TIMELINE       5-week build schedule with progress indicators
   LINE ~1117  FOOTER         School name + GitHub link
@@ -1039,8 +1039,8 @@ footer {
     <div class="stat-label">API Endpoints</div>
   </div>
   <div class="stat reveal reveal-delay-3">
-    <div class="stat-number">8</div>
-    <div class="stat-label">Database Tables</div>
+    <div class="stat-number">6</div>
+    <div class="stat-label">Collections</div>
   </div>
 </div>
 
@@ -1064,7 +1064,7 @@ footer {
     <div class="feature-card reveal reveal-delay-1">
       <div class="feature-icon">&#9889;</div>
       <h3>Real-Time Messaging</h3>
-      <p>Native WebSocket connections deliver messages instantly. Typing indicators, online presence, and read receipts keep conversations flowing naturally. Exponential backoff handles disconnects gracefully.</p>
+      <p>Socket.io delivers messages instantly with automatic room management. Typing indicators, online presence, and read receipts keep conversations flowing naturally. Built-in reconnection handles disconnects gracefully.</p>
     </div>
     <div class="feature-card reveal reveal-delay-2">
       <div class="feature-icon">&#127891;</div>
@@ -1155,44 +1155,44 @@ footer {
 
   <div class="tech-grid">
     <div class="tech-item reveal">
-      <div class="tech-name">FastAPI</div>
+      <div class="tech-name">Node.js</div>
+      <div class="tech-role">Runtime</div>
+    </div>
+    <div class="tech-item reveal reveal-delay-1">
+      <div class="tech-name">Express.js</div>
       <div class="tech-role">Backend Framework</div>
     </div>
     <div class="tech-item reveal reveal-delay-1">
-      <div class="tech-name">PostgreSQL 16</div>
+      <div class="tech-name">Socket.io</div>
+      <div class="tech-role">Real-Time Layer</div>
+    </div>
+    <div class="tech-item reveal reveal-delay-2">
+      <div class="tech-name">MongoDB</div>
       <div class="tech-role">Database</div>
     </div>
-    <div class="tech-item reveal reveal-delay-1">
-      <div class="tech-name">SQLAlchemy 2.0</div>
-      <div class="tech-role">Async ORM</div>
-    </div>
     <div class="tech-item reveal reveal-delay-2">
-      <div class="tech-name">Alembic</div>
-      <div class="tech-role">Migrations</div>
+      <div class="tech-name">Mongoose</div>
+      <div class="tech-role">ODM</div>
     </div>
-    <div class="tech-item reveal reveal-delay-2">
+    <div class="tech-item reveal reveal-delay-3">
+      <div class="tech-name">Redis</div>
+      <div class="tech-role">Sessions &amp; Cache</div>
+    </div>
+    <div class="tech-item reveal reveal-delay-3">
       <div class="tech-name">React 18</div>
       <div class="tech-role">Frontend UI</div>
     </div>
-    <div class="tech-item reveal reveal-delay-3">
+    <div class="tech-item reveal reveal-delay-4">
       <div class="tech-name">TypeScript</div>
       <div class="tech-role">Type Safety</div>
     </div>
-    <div class="tech-item reveal reveal-delay-3">
+    <div class="tech-item reveal reveal-delay-4">
       <div class="tech-name">Vite</div>
       <div class="tech-role">Build Tool</div>
     </div>
-    <div class="tech-item reveal reveal-delay-4">
-      <div class="tech-name">Zustand</div>
-      <div class="tech-role">State Management</div>
-    </div>
-    <div class="tech-item reveal reveal-delay-4">
+    <div class="tech-item reveal reveal-delay-5">
       <div class="tech-name">TweetNaCl.js</div>
       <div class="tech-role">Client Encryption</div>
-    </div>
-    <div class="tech-item reveal reveal-delay-5">
-      <div class="tech-name">WebSockets</div>
-      <div class="tech-role">Real-Time Layer</div>
     </div>
     <div class="tech-item reveal reveal-delay-5">
       <div class="tech-name">Capacitor</div>
@@ -1218,21 +1218,21 @@ footer {
   <div class="arch-diagram">
     <div class="arch-layer reveal" style="background: var(--black-card);">
       <div class="arch-layer-name">Client</div>
-      <div class="arch-layer-tech">React 18 + TypeScript + Zustand + TweetNaCl.js</div>
+      <div class="arch-layer-tech">React 18 + TypeScript + Zustand + TweetNaCl.js + Socket.io Client</div>
     </div>
     <div class="arch-arrow" style="position: relative;">
       <span class="arch-arrow-label">HTTPS / WSS</span>
     </div>
     <div class="arch-layer reveal reveal-delay-1" style="background: var(--black-card);">
-      <div class="arch-layer-name">API + WebSocket Server</div>
-      <div class="arch-layer-tech">FastAPI (async) + JWT Auth + Connection Manager</div>
+      <div class="arch-layer-name">API + Real-Time Server</div>
+      <div class="arch-layer-tech">Express.js + Socket.io + JWT Auth + Redis Sessions</div>
     </div>
     <div class="arch-arrow" style="position: relative;">
-      <span class="arch-arrow-label">asyncpg</span>
+      <span class="arch-arrow-label">mongoose / ioredis</span>
     </div>
     <div class="arch-layer reveal reveal-delay-2" style="background: var(--black-card);">
-      <div class="arch-layer-name">Database</div>
-      <div class="arch-layer-tech">PostgreSQL 16 &mdash; 8 tables, JSONB encrypted payloads</div>
+      <div class="arch-layer-name">Data Layer</div>
+      <div class="arch-layer-tech">MongoDB (documents &amp; encrypted payloads) + Redis (sessions &amp; presence)</div>
     </div>
   </div>
 </section>
@@ -1260,7 +1260,7 @@ footer {
     <div class="timeline-item reveal">
       <div class="timeline-week">Week 1</div>
       <div class="timeline-title">Foundation + Authentication</div>
-      <div class="timeline-desc">Project scaffolding, PostgreSQL, Alembic migrations, JWT auth, .edu signup with email verification.</div>
+      <div class="timeline-desc">Project scaffolding, MongoDB + Redis via Docker, Mongoose models, JWT auth, .edu signup with email verification.</div>
     </div>
     <div class="timeline-item reveal reveal-delay-1">
       <div class="timeline-week">Week 2</div>
@@ -1270,7 +1270,7 @@ footer {
     <div class="timeline-item reveal reveal-delay-2">
       <div class="timeline-week">Week 3</div>
       <div class="timeline-title">Real-Time Messaging</div>
-      <div class="timeline-desc">WebSocket connection manager, live message delivery, typing indicators, online presence, message history API.</div>
+      <div class="timeline-desc">Socket.io integration, live message delivery with rooms, typing indicators, online presence via Redis, message history API.</div>
     </div>
     <div class="timeline-item reveal reveal-delay-3">
       <div class="timeline-week">Week 4</div>
