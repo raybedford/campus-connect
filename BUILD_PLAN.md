@@ -76,7 +76,7 @@ Campus Connect solves each of these.
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | UUID | PK |
-| domain | VARCHAR | UNIQUE (e.g. "colorado.edu") |
+| domain | VARCHAR | UNIQUE (e.g. "coloradotech.edu") |
 | name | VARCHAR | Optional |
 | created_at | TIMESTAMP | DEFAULT now() |
 
@@ -173,7 +173,7 @@ Campus Connect solves each of these.
 
 ### 6.1 Authentication
 - Signup requires a valid `.edu` email address
-- Server extracts the domain (e.g. `colorado.edu`) and auto-creates or links to a School record
+- Server extracts the domain (e.g. `coloradotech.edu`) and auto-creates or links to a School record
 - 6-digit verification code sent to email (dev mode: logged to console)
 - Code expires after 10 minutes
 - On verification, server returns JWT access token (30 min) and refresh token (7 days)
@@ -346,7 +346,7 @@ Campus Connect solves each of these.
 | Day | Tasks |
 |-----|-------|
 | Tue | Rate limiting on auth endpoints (10 req/min per IP), WebSocket reconnection with exponential backoff (1s base, 30s max) |
-| Wed | CU Boulder theming: black & gold color scheme, campus building SVG branding, centered layouts, responsive design polish |
+| Wed | CTU theming: black & gold color scheme, campus building SVG branding, centered layouts, responsive design polish |
 | Thu | Capacitor configuration for iOS/Android wrapping, loading/error states across all pages, edge case handling |
 | Fri | End-to-end testing: full auth flow, user search, DM + group conversations, real-time messaging, E2EE verification, file sharing lifecycle, rate limiting |
 | Sat | Final documentation (BUILD_PLAN.md), code cleanup, demo preparation |
