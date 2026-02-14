@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Database
+*.db
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Capacitor
+frontend/android/
+frontend/ios/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic
+alembic/__pycache__/
+
+# Docker
+docker-data/
