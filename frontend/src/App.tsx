@@ -7,7 +7,6 @@ import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Signup from './pages/Signup';
-import Verify from './pages/Verify';
 import ConversationList from './pages/ConversationList';
 import Chat from './pages/Chat';
 import NewConversation from './pages/NewConversation';
@@ -30,7 +29,6 @@ function AppRoutes() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/verify" element={<Verify />} />
           <Route
             path="/directory"
             element={

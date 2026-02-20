@@ -7,10 +7,12 @@ export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
 
   // Don't show complex nav on auth pages
-  const isAuthPage = ['/login', '/signup', '/verify'].includes(location.pathname);
+  const isAuthPage = ['/login', '/signup'].includes(location.pathname);
 
-  const schoolName = user?.school?.name || 'Colorado Technical University';
-  const schoolLogo = user?.school?.logoUrl;
+  // Supabase doesn't automatically populate school details, 
+  // so we'll use a fallback or user metadata
+  const schoolName = user?.user_metadata?.school_name || 'Colorado Technical University';
+  const schoolLogo = user?.user_metadata?.school_logo;
 
   return (
     <nav className="nav">

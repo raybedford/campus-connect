@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { signup } from '../api/auth';
 import CampusBuilding from '../components/CampusBuilding';
 
@@ -9,7 +9,7 @@ export default function Signup() {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [issubmitted, setIsSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,13 +22,38 @@ export default function Signup() {
 
     try {
       await signup(email, password, displayName);
-      navigate('/verify', { state: { email } });
+      setIsSubmitted(true);
     } catch (err: any) {
       setError(err.message || 'Signup failed');
     } finally {
       setLoading(false);
     }
   };
+
+  if (issubmitted) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card" style={{ textAlign: 'center' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <CampusBuilding size={64} />
+          </div>
+          <h1 className="auth-title">Verify Your Email</h1>
+          <p className="auth-desc">
+            We've sent a confirmation link to <br />
+            <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{email}</span>
+          </p>
+          <p style={{ fontSize: '0.9rem', color: 'var(--cream-dim)', marginTop: '1.5rem' }}>
+            Please click the link in the email to activate your account. Once verified, you can sign in.
+          </p>
+          <div style={{ marginTop: '2rem' }}>
+            <Link to="/login" className="btn btn-primary" style={{ textDecoration: 'none', display: 'inline-block' }}>
+              Back to Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-container">
