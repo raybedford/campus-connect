@@ -45,15 +45,13 @@ export default function Settings() {
         full_name: displayName
       });
       
-      const { data: updatedProfile, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
           display_name: displayName,
           preferred_language: preferredLang
         })
-        .eq('id', user.id)
-        .select('*, school:schools(*)')
-        .single();
+        .eq('id', user.id);
         
       if (updateError) throw updateError;
       
