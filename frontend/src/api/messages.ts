@@ -1,13 +1,51 @@
-import client from './client';
+import { supabase } from '../lib/supabase';
 import type { Message } from '../types';
 
 export async function getMessages(
   conversationId: string,
-  before?: string,
+  _before?: string,
   limit = 50
-): Promise<Message[]> {
-  const params: Record<string, string | number> = { limit };
-  if (before) params.before = before;
-  const res = await client.get(`/conversations/${conversationId}/messages`, { params });
-  return res.data;
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      sender:profiles (
+        id,
+        email,
+        display_name,
+        avatar_url
+      )
+    `)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendMessage(
+  conversationId: string,
+  messageType: string,
+  content: string, // This will store the encrypted payloads JSON
+  fileUrl?: string
+) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_id: user.id,
+      message_type: messageType,
+      content: content,
+      file_url: fileUrl
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }

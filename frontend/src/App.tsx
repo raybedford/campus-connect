@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
-import { useSocket } from './hooks/useSocket';
+import { useAuthStore } from './store/auth';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -15,7 +16,12 @@ import Settings from './pages/Settings';
 import './App.css';
 
 function AppRoutes() {
-  useSocket();
+  const initializeAuth = useAuthStore(s => s.initialize);
+  
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
   return (
     <>
       <Navbar />

@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getConversation } from '../api/conversations';
-import { getMessages } from '../api/messages';
+import { getMessages, sendMessage } from '../api/messages';
 import { getBatchPublicKeys } from '../api/keys';
 import { useAuthStore } from '../store/auth';
 import { useMessageStore } from '../store/message';
 import { usePresenceStore } from '../store/presence';
 import { encryptForMultipleRecipients, decryptMessage } from '../crypto/encryption';
-// import { encryptFile } from '../crypto/fileEncryption'; // TODO: Implement if missing
+import { encryptFile } from '../crypto/fileEncryption';
 import { getPrivateKey } from '../crypto/keyManager';
-// import { uploadFile } from '../api/files'; // TODO: Implement if missing
+import { uploadFile } from '../api/files';
 import type { Conversation, Message, PublicKeyInfo } from '../types';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import TypingIndicator from '../components/TypingIndicator';
-import { Socket } from 'socket.io-client';
+import { useChatSubscription } from '../hooks/useChatSubscription';
 
 export default function Chat() {
   const { id } = useParams<{ id: string }>();
@@ -23,13 +23,16 @@ export default function Chat() {
   const messages = useMessageStore((s) => s.messages[id!] || []);
   const setMessages = useMessageStore((s) => s.setMessages);
   const addMessage = useMessageStore((s) => s.addMessage);
-  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [conversation, setConversation] = useState<Conversation | any>(null);
   const [memberKeys, setMemberKeys] = useState<Record<string, string>>({});
   const [showFiles, setShowFiles] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || []);
 
-  const sharedFiles = messages.filter(m => m.messageType === 'file' || m.message_type === 'file');
+  // Use the new Supabase Realtime hook
+  useChatSubscription(id || null);
+
+  const sharedFiles = messages.filter(m => m.message_type === 'file');
 
   useEffect(() => {
     if (!id || !user) return;
@@ -42,13 +45,11 @@ export default function Chat() {
         setConversation(conv);
 
         // Fetch public keys for all members
-        const memberIds = conv.members.map((m: any) => m.user._id || m.user);
+        const memberIds = conv.members.map((m: any) => m.user?.id || m.user_id || m.user);
         const keys = await getBatchPublicKeys(memberIds);
         const keyMap: Record<string, string> = {};
-        keys.forEach((k: PublicKeyInfo | any) => {
-          // Backend returns 'user' (ID string) and 'publicKeyB64'
-          const uid = k.user._id || k.user;
-          keyMap[uid] = k.publicKeyB64;
+        keys.forEach((k: any) => {
+          keyMap[k.user] = k.publicKeyB64;
         });
         setMemberKeys(keyMap);
 
@@ -62,15 +63,14 @@ export default function Chat() {
     load();
   }, [id, user]);
 
-  async function decryptMessagesList(msgs: any[], keys: Record<string, string>): Promise<Message[]> {
-    const results: Message[] = [];
+  async function decryptMessagesList(msgs: any[], keys: Record<string, string>): Promise<any[]> {
+    const results: any[] = [];
     const myPrivateKey = await getPrivateKey();
 
     for (const msg of msgs) {
       try {
-        // Backend uses 'encryptedPayloads' (camelCase)
-        const payloads = msg.encryptedPayloads || msg.encrypted_payloads || [];
-        const senderId = msg.sender._id || msg.sender;
+        const payloads = msg.content ? JSON.parse(msg.content) : [];
+        const senderId = msg.sender_id || (msg.sender?.id);
 
         const myPayload = payloads.find(
           (p: any) => p.recipientId === user?.id || p.recipient_id === user?.id
@@ -87,21 +87,13 @@ export default function Chat() {
           );
           results.push({ 
             ...msg, 
-            id: msg._id,
-            conversation_id: msg.conversation,
-            sender_id: senderId,
             decrypted_text: text 
           });
         } else {
-          results.push({
-            ...msg,
-            id: msg._id,
-            conversation_id: msg.conversation,
-            sender_id: senderId
-          });
+          results.push(msg);
         }
       } catch (err) {
-        console.error('Decryption failed for message:', msg._id, err);
+        console.error('Decryption failed for message:', msg.id, err);
         results.push(msg);
       }
     }
@@ -119,19 +111,17 @@ export default function Chat() {
     let payloads;
 
     if (secretKey && Object.keys(memberKeys).length > 0) {
-      // E2EE: encrypt for each recipient
       const recipients = conversation.members
         .map((m: any) => {
-          const uid = m.user._id || m.user;
+          const uid = m.user?.id || m.user_id || m.user;
           return { userId: uid, publicKeyB64: memberKeys[uid] };
         })
-        .filter((r) => r.publicKeyB64);
+        .filter((r: any) => r.publicKeyB64);
       
       payloads = encryptForMultipleRecipients(text, recipients, secretKey);
     } else {
-      // Fallback (should ideally not happen if keys are published)
       payloads = conversation.members.map((m: any) => {
-        const uid = m.user._id || m.user;
+        const uid = m.user?.id || m.user_id || m.user;
         return {
           recipientId: uid,
           ciphertextB64: btoa(text),
@@ -140,97 +130,44 @@ export default function Chat() {
       });
     }
 
-    // Send via Socket.io
-    const socket = (window as any).__campusSocket as Socket | undefined;
-    if (socket && socket.connected) {
-      socket.emit('send_message', {
-        conversationId: id,
-        messageType: 'text',
-        encryptedPayloads: payloads,
-      }, (response: any) => {
-        if (response.status === 'error') {
-          console.error('Failed to send message:', response.message);
-        }
-      });
-    } else {
-      console.error('Socket not connected');
+    try {
+      const msg = await sendMessage(id, 'text', JSON.stringify(payloads));
+      // Optimistic UI update (optional as Supabase Realtime will also add it)
+      addMessage(id, { ...msg, decrypted_text: text });
+    } catch (err) {
+      console.error('Failed to send message:', err);
     }
-
-    // Optimistic UI update
-    const tempMsg: any = {
-      _id: `temp-${Date.now()}`,
-      conversation: id,
-      sender: { _id: user.id, displayName: user.displayName },
-      createdAt: new Date().toISOString(),
-      messageType: 'text',
-      encryptedPayloads: payloads,
-      decrypted_text: text,
-    };
-    addMessage(id, tempMsg);
   };
 
   const handleFileSelect = async (file: File) => {
     if (!id || !user || !conversation) return;
 
     const secretKey = await getPrivateKey();
-    if (!secretKey) {
-      console.error('Private key not found, cannot encrypt file');
-      return;
-    }
+    if (!secretKey) return;
 
     const fileData = new Uint8Array(await file.arrayBuffer());
     const recipients = conversation.members
       .map((m: any) => {
-        const uid = m.user._id || m.user;
+        const uid = m.user?.id || m.user_id || m.user;
         return { userId: uid, publicKeyB64: memberKeys[uid] };
       })
-      .filter((r) => r.publicKeyB64);
+      .filter((r: any) => r.publicKeyB64);
 
     const { encryptedBlob, keyPayloads } = encryptFile(fileData, recipients, secretKey);
 
-    // 1. Create message first to get an ID for the attachment
-    const socket = (window as any).__campusSocket as Socket | undefined;
-    if (!socket || !socket.connected) {
-      console.error('Socket not connected');
-      return;
+    try {
+      const { path } = await uploadFile(new Blob([encryptedBlob]), 'temp', id, file.name, recipients.length);
+      const msg = await sendMessage(id, 'file', JSON.stringify(keyPayloads), path);
+      addMessage(id, { ...msg, decrypted_text: `[File: ${file.name}]` });
+    } catch (err) {
+      console.error('File upload failed:', err);
     }
-
-    socket.emit('send_message', {
-      conversationId: id,
-      messageType: 'file',
-      encryptedPayloads: keyPayloads,
-    }, async (response: any) => {
-      if (response.status === 'ok') {
-        const messageId = response.messageId;
-        
-        // 2. Upload encrypted file blob
-        const blob = new Blob([encryptedBlob]);
-        try {
-          await uploadFile(blob, messageId, id, file.name, recipients.length);
-          
-          // Optimistic UI update for the file message
-          const tempMsg: any = {
-            _id: messageId,
-            conversation: id,
-            sender: { _id: user.id, displayName: user.displayName },
-            createdAt: new Date().toISOString(),
-            messageType: 'file',
-            encryptedPayloads: keyPayloads,
-            decrypted_text: `[File: ${file.name}]`,
-          };
-          addMessage(id, tempMsg);
-        } catch (err) {
-          console.error('File upload failed:', err);
-        }
-      } else {
-        console.error('Failed to create file message:', response.message);
-      }
-    });
   };
 
+  const otherMember = conversation?.members?.find((m: any) => (m.user?.id || m.user_id || m.user) !== user?.id);
   const displayName = conversation
     ? conversation.type === 'dm'
-      ? conversation.members.find((m: any) => (m.user._id || m.user) !== user?.id)?.user?.displayName || 'Chat'
+      ? otherMember?.user?.display_name || otherMember?.display_name || 'Chat'
       : conversation.name || 'Group Chat'
     : 'Loading...';
 
@@ -266,10 +203,10 @@ export default function Chat() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               {sharedFiles.map((msg: any) => (
-                <div key={msg._id} style={{ background: 'var(--black)', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--black-border)', fontSize: '0.8rem' }}>
+                <div key={msg.id} style={{ background: 'var(--black)', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--black-border)', fontSize: '0.8rem' }}>
                   {msg.decrypted_text || '[Encrypted File]'}
                   <div style={{ fontSize: '0.65rem', color: 'var(--cream-dim)' }}>
-                    {new Date(msg.createdAt).toLocaleDateString()}
+                    {new Date(msg.created_at).toLocaleDateString()}
                   </div>
                 </div>
               ))}
@@ -281,10 +218,10 @@ export default function Chat() {
       <div className="chat-messages">
         {messages.map((msg: any) => (
           <MessageBubble
-            key={msg._id || msg.id}
+            key={msg.id}
             message={msg}
-            isMine={(msg.sender?._id || msg.sender_id || msg.sender) === user?.id}
-            senderName={msg.sender?.displayName || 'User'}
+            isMine={(msg.sender_id || msg.sender?.id || msg.sender) === user?.id}
+            senderName={msg.sender?.display_name || 'User'}
           />
         ))}
         <TypingIndicator

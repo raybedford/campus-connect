@@ -23,7 +23,7 @@ export default function ForgotPassword() {
         navigate('/reset-password', { state: { email } });
       }, 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to request reset');
+      setError(err.message || 'Failed to request reset');
     } finally {
       setLoading(false);
     }

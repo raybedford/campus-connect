@@ -23,7 +23,7 @@ export function useChatSubscription(conversationId: string | null) {
         (payload) => {
           // payload.new is the new message object
           console.log('New message received!', payload.new);
-          addMessage(payload.new);
+          addMessage(conversationId, payload.new);
         }
       )
       .subscribe();

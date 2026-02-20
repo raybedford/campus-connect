@@ -18,11 +18,13 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { access_token, refresh_token } = await login(email, password);
-      setAuth(access_token, refresh_token);
-      navigate('/conversations');
+      const { session } = await login(email, password);
+      if (session) {
+        setAuth(session.access_token, session.refresh_token);
+        navigate('/conversations');
+      }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed');
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }

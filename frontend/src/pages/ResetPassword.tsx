@@ -19,11 +19,11 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      await resetPassword({ email, code, newPassword });
+      await resetPassword(newPassword);
       setSuccess(true);
       setTimeout(() => navigate('/login'), 3000);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Reset failed');
+      setError(err.message || 'Reset failed');
     } finally {
       setLoading(false);
     }

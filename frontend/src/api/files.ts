@@ -1,28 +1,31 @@
-import client from './client';
+import { supabase } from '../lib/supabase';
 
 export async function uploadFile(
   file: Blob,
-  messageId: string,
-  _conversationId: string, // Not strictly required by current Node.js file upload logic but kept for future scope
+  _messageId: string, // Kept for signature, but use storage path
+  conversationId: string,
   filename: string,
-  totalRecipients: number
+  _totalRecipients: number
 ) {
-  const formData = new FormData();
-  formData.append('file', file, filename);
-  // Backend uses camelCase for the database model
-  formData.append('messageId', messageId);
-  formData.append('originalFilename', filename);
-  formData.append('totalRecipients', totalRecipients.toString());
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
-  const res = await client.post('/files/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return res.data;
+  const filePath = `${conversationId}/${Date.now()}-${filename}`;
+
+  // You must create a bucket named 'chat-files' in your Supabase storage!
+  const { data, error } = await supabase.storage
+    .from('chat-files')
+    .upload(filePath, file);
+
+  if (error) throw error;
+  return { path: data.path };
 }
 
-export async function downloadFile(attachmentId: string): Promise<Blob> {
-  const res = await client.get(`/files/${attachmentId}/download`, {
-    responseType: 'blob',
-  });
-  return res.data;
+export async function downloadFile(path: string): Promise<Blob> {
+  const { data, error } = await supabase.storage
+    .from('chat-files')
+    .download(path);
+
+  if (error) throw error;
+  return data;
 }

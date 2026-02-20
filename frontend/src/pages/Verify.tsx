@@ -19,11 +19,11 @@ export default function Verify() {
     setLoading(true);
 
     try {
-      const { access_token, refresh_token } = await verifyEmail(email, code);
-      setAuth(access_token, refresh_token);
+      await verifyEmail(email, code);
+      // Since Supabase usually verifies via email links, this is just to keep the UI flow for the bypass code
       navigate('/conversations');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Verification failed');
+      setError(err.message || 'Verification failed');
     } finally {
       setLoading(false);
     }

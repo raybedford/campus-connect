@@ -1,46 +1,24 @@
-import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-const client = axios.create({
-  baseURL: API_BASE,
-  headers: { 'Content-Type': 'application/json' },
-});
-
-client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-client.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        try {
-          const res = await axios.post(`${API_BASE}/auth/refresh`, {
-            refresh_token: refreshToken,
-          });
-          localStorage.setItem('access_token', res.data.access_token);
-          localStorage.setItem('refresh_token', res.data.refresh_token);
-          original.headers.Authorization = `Bearer ${res.data.access_token}`;
-          return client(original);
-        } catch {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
-        }
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+/**
+ * Compatibility layer for the old Axios 'client' pattern.
+ * New code should use 'supabase' directly from '../lib/supabase'.
+ */
+const client = {
+  get: async (path: string, options: any = {}) => {
+    // Map old paths to Supabase calls if possible, or throw error
+    console.warn(`Deprecated client.get called for ${path}. Use supabase instead.`);
+    throw new Error(`Endpoint ${path} is not implemented in Supabase compatibility layer.`);
+  },
+  post: async (path: string, data: any = {}, options: any = {}) => {
+    console.warn(`Deprecated client.post called for ${path}. Use supabase instead.`);
+    throw new Error(`Endpoint ${path} is not implemented in Supabase compatibility layer.`);
+  },
+  delete: async (path: string, options: any = {}) => {
+    console.warn(`Deprecated client.delete called for ${path}. Use supabase instead.`);
+    throw new Error(`Endpoint ${path} is not implemented in Supabase compatibility layer.`);
+  },
+};
 
 export default client;
-export { API_BASE };
+export const API_BASE = '';
