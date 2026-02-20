@@ -10,7 +10,7 @@ import { encryptForMultipleRecipients, decryptMessage } from '../crypto/encrypti
 import { encryptFile } from '../crypto/fileEncryption';
 import { getPrivateKey } from '../crypto/keyManager';
 import { uploadFile } from '../api/files';
-import type { Conversation, Message, PublicKeyInfo } from '../types';
+import type { Conversation } from '../types';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import TypingIndicator from '../components/TypingIndicator';
@@ -65,7 +65,6 @@ export default function Chat() {
 
   async function decryptMessagesList(msgs: any[], keys: Record<string, string>): Promise<any[]> {
     const results: any[] = [];
-    const myPrivateKey = await getPrivateKey();
 
     for (const msg of msgs) {
       try {
@@ -73,17 +72,17 @@ export default function Chat() {
         const senderId = msg.sender_id || (msg.sender?.id);
 
         const myPayload = payloads.find(
-          (p: any) => p.recipientId === user?.id || p.recipient_id === user?.id
+          (p: any) => p.recipient_id === user?.id || p.recipientId === user?.id
         );
 
-        if (myPayload && myPrivateKey && keys[senderId]) {
+        if (myPayload && keys[senderId]) {
           const text = await decryptMessage(
             {
-              ciphertextB64: myPayload.ciphertextB64 || myPayload.ciphertext_b64,
-              nonceB64: myPayload.nonceB64 || myPayload.nonce_b64
+              recipient_id: myPayload.recipient_id || myPayload.recipientId,
+              ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
+              nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
             },
-            keys[senderId],
-            myPrivateKey
+            keys[senderId]
           );
           results.push({ 
             ...msg, 
@@ -123,16 +122,16 @@ export default function Chat() {
       payloads = conversation.members.map((m: any) => {
         const uid = m.user?.id || m.user_id || m.user;
         return {
-          recipientId: uid,
-          ciphertextB64: btoa(text),
-          nonceB64: btoa('0'.repeat(24)),
+          recipient_id: uid,
+          ciphertext_b64: btoa(text),
+          nonce_b64: btoa('0'.repeat(24)),
         };
       });
     }
 
     try {
       const msg = await sendMessage(id, 'text', JSON.stringify(payloads));
-      // Optimistic UI update (optional as Supabase Realtime will also add it)
+      // Optimistic UI update
       addMessage(id, { ...msg, decrypted_text: text });
     } catch (err) {
       console.error('Failed to send message:', err);
@@ -156,7 +155,7 @@ export default function Chat() {
     const { encryptedBlob, keyPayloads } = encryptFile(fileData, recipients, secretKey);
 
     try {
-      const { path } = await uploadFile(new Blob([encryptedBlob]), 'temp', id, file.name, recipients.length);
+      const { path } = await uploadFile(new Blob([encryptedBlob as any]), 'temp', id, file.name, recipients.length);
       const msg = await sendMessage(id, 'file', JSON.stringify(keyPayloads), path);
       addMessage(id, { ...msg, decrypted_text: `[File: ${file.name}]` });
     } catch (err) {

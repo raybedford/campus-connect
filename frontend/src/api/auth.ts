@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 
-export const login = async (email, password) => {
+export const login = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -9,7 +9,7 @@ export const login = async (email, password) => {
   return data;
 };
 
-export const signup = async (email, password, displayName) => {
+export const signup = async (email: string, password: string, displayName: string) => {
   if (!email.endsWith('.edu')) {
     throw new Error('Only .edu emails are allowed.');
   }
@@ -59,8 +59,7 @@ export const updateMe = async (data: any) => {
   if (error) throw error;
 };
 
-// Supabase handles verification via email links automatically, but we can provide a dummy
-export const verifyEmail = async (email: string, code: string) => {
-  // If the user is entering a code manually, we assume they used the 123456 bypass or it's just for UI flow
+// Supabase handles verification via email links automatically
+export const verifyEmail = async (_email: string, _code: string) => {
   return { success: true };
 };

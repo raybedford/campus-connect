@@ -26,7 +26,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     });
   },
 
-  setAuth: (accessToken, refreshToken) => {
+  setAuth: () => {
     // Supabase handles this in the background, but we can set UI state
     set({ isAuthenticated: true });
   },

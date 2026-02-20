@@ -24,7 +24,7 @@ export default function Signup() {
       await signup(email, password, displayName);
       navigate('/verify', { state: { email } });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Signup failed');
+      setError(err.message || 'Signup failed');
     } finally {
       setLoading(false);
     }

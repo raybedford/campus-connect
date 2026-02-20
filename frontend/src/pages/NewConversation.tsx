@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { searchUsers, createConversation } from '../api/conversations';
 import CampusBuilding from '../components/CampusBuilding';
@@ -55,7 +55,7 @@ export default function NewConversation() {
       const conv = await createConversation(mode, memberIds, groupName);
       navigate(`/conversations/${conv._id || conv.id}`);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Could not create conversation');
+      setError(err.message || 'Could not create conversation');
     }
   };
 

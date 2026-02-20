@@ -27,7 +27,7 @@ function getInitials(name: string): string {
 
 export default function ConversationList() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const { setConversations } = useConversationStore();
   const [conversations, setLocalConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase';
-import type { Message } from '../types';
 
 export async function getMessages(
   conversationId: string,
