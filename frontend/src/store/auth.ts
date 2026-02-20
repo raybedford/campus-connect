@@ -8,21 +8,9 @@ interface AuthState {
   logout: () => void;
 }
 
-/**
- * AUTH BYPASS FOR DEMO TESTING
- */
 export const useAuthStore = create<AuthState>((set) => ({
-  // Demo Setup: Automatically Authenticated
-  user: {
-    id: 'demo_alex_id',
-    displayName: 'Alex Johnson',
-    email: 'alex.j@coloradotech.edu',
-    school: {
-      name: 'Colorado Technical University',
-      logoUrl: 'https://logo.clearbit.com/coloradotech.edu'
-    }
-  },
-  isAuthenticated: true, 
+  user: null,
+  isAuthenticated: false, 
 
   setAuth: (accessToken, refreshToken) => {
     localStorage.setItem('access_token', accessToken);
