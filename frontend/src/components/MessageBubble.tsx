@@ -20,13 +20,12 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
   const hasText = message.decrypted_text || message.decryptedText;
 
   useEffect(() => {
-    // Automatic translation logic:
-    // Only translate if:
-    // 1. It's NOT my message
-    // 2. There is text to translate
-    // 3. We haven't already translated it
-    // 4. The user has a preferred language other than English (default)
-    const shouldAutoTranslate = !isMine && hasText && !translatedText && profile?.preferred_language && profile.preferred_language !== 'en';
+    // Only auto-translate if:
+    // 1. It's not my message
+    // 2. We have text
+    // 3. User's language isn't 'en' or is specifically set
+    const userLang = profile?.preferred_language || 'en';
+    const shouldAutoTranslate = !isMine && hasText && !translatedText && userLang !== 'en';
     
     if (shouldAutoTranslate) {
       handleTranslate();
@@ -40,15 +39,19 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
     setIsTranslating(true);
     try {
       const targetLang = profile?.preferred_language || 'en';
-      // Using MyMemory Translation API
+      // MyMemory API: auto detection of source
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToTranslate)}&langpair=auto|${targetLang}`
       );
       const data = await res.json();
+      
       if (data.responseData && data.responseData.translatedText) {
-        // Only set if the translation is different from original
-        if (data.responseData.translatedText.toLowerCase().trim() !== textToTranslate.toLowerCase().trim()) {
-          setTranslatedText(data.responseData.translatedText);
+        const resultText = data.responseData.translatedText;
+        
+        // If the API detected the source language matches the target language, 
+        // it often returns the same string.
+        if (resultText.toLowerCase().trim() !== textToTranslate.toLowerCase().trim()) {
+          setTranslatedText(resultText);
         }
       }
     } catch (err) {
@@ -71,7 +74,6 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
                 {translatedText}
               </div>
             )}
-            {/* Show manual button only if auto-translate didn't run or failed, and it's not mine */}
             {!isMine && !translatedText && !isTranslating && (
               <button 
                 className="translate-btn" 

@@ -14,12 +14,16 @@ export const signup = async (email: string, password: string, displayName: strin
     throw new Error('Only .edu emails are allowed.');
   }
 
+  // Auto-detect browser/native language (e.g., 'es', 'fr', 'en')
+  const nativeLang = navigator.language.split('-')[0] || 'en';
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: displayName,
+        preferred_language: nativeLang
       },
     },
   });

@@ -158,8 +158,8 @@ BEGIN
         new.email, 
         new.raw_user_meta_data->>'full_name', 
         target_school_id,
-        TRUE, -- Auto-verify profile status for demo/testing
-        'en'
+        TRUE, 
+        COALESCE(new.raw_user_meta_data->>'preferred_language', 'en')
     );
     RETURN new;
 END;
