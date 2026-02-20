@@ -7,6 +7,26 @@ interface MessageProps {
   senderName?: string;
 }
 
+// Simple Markdown Parser for bold, italics, and code
+function parseMarkdown(text: string) {
+  // 1. Code blocks: ```code```
+  let html = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  
+  // 2. Inline code: `code`
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // 3. Bold: **text** or __text__
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  
+  // 4. Italics: *text* or _text_
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+  // Handle newlines
+  return html.replace(/\n/g, '<br />');
+}
+
 export default function MessageBubble({ message, isMine, senderName }: MessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -66,13 +86,19 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
             {isGif ? (
               <img src={gifUrl!} alt="GIF" className="gif-msg-img" />
             ) : (
-              <div>{hasText}</div>
+              <div 
+                className="markdown-body"
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(hasText) }}
+              />
             )}
             
             {translatedText && (
               <div className="translated-text">
                 <span style={{ fontSize: '0.65rem', display: 'block', opacity: 0.6, marginBottom: '2px' }}>Translated:</span>
-                {translatedText}
+                <div 
+                  className="markdown-body"
+                  dangerouslySetInnerHTML={{ __html: parseMarkdown(translatedText) }}
+                />
               </div>
             )}
             {!isMine && !translatedText && !isTranslating && !isGif && (

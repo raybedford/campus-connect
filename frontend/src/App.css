@@ -292,6 +292,60 @@
   display: block;
 }
 
+/* Markdown Styles */
+.markdown-body {
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.markdown-body code {
+  font-family: var(--mono);
+  background: rgba(207,184,124,0.15);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.message-bubble.mine .markdown-body code {
+  background: rgba(0,0,0,0.1);
+}
+
+.markdown-body pre {
+  background: var(--black);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--black-border);
+}
+
+.message-bubble.mine .markdown-body pre {
+  background: rgba(0,0,0,0.2);
+  border-color: rgba(0,0,0,0.1);
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-body p {
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
 /* Search Results */
 .search-results {
   list-style: none;
