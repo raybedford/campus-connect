@@ -20,7 +20,7 @@ export default function Login() {
     try {
       const { session } = await login(email, password);
       if (session) {
-        setAuth(session.access_token, session.refresh_token);
+        setAuth();
         navigate('/conversations');
       }
     } catch (err: any) {

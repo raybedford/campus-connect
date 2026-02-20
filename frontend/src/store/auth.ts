@@ -11,7 +11,7 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   profile: null,
   isAuthenticated: false, 
@@ -31,7 +31,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     
     // Listen for auth changes
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    supabase.auth.onAuthStateChange(async (_event, session) => {
       set({ user: session?.user || null, isAuthenticated: !!session });
       
       if (session?.user) {
