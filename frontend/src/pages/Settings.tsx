@@ -45,7 +45,6 @@ export default function Settings() {
         full_name: displayName
       });
       
-      // Update local profile state including language
       const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
         .update({ 
@@ -58,8 +57,6 @@ export default function Settings() {
         
       if (updateError) throw updateError;
       
-      // The initialize listener in useAuthStore will update the global state,
-      // but we can also manually trigger a refresh if needed.
       setMessage('Profile updated successfully');
     } catch (err: any) {
       setMessage(err.message || 'Failed to update profile');
@@ -110,7 +107,7 @@ export default function Settings() {
               ))}
             </select>
             <p style={{ fontSize: '0.7rem', color: 'var(--cream-dim)', marginTop: '0.4rem' }}>
-              Messages will be translated into this language when you click "Translate".
+              When set to a language other than English, incoming messages will be <strong>automatically translated</strong>.
             </p>
           </div>
 

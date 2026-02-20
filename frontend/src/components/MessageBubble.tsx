@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 
 interface MessageProps {
@@ -17,20 +17,39 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
     minute: '2-digit',
   });
 
+  const hasText = message.decrypted_text || message.decryptedText;
+
+  useEffect(() => {
+    // Automatic translation logic:
+    // Only translate if:
+    // 1. It's NOT my message
+    // 2. There is text to translate
+    // 3. We haven't already translated it
+    // 4. The user has a preferred language other than English (default)
+    const shouldAutoTranslate = !isMine && hasText && !translatedText && profile?.preferred_language && profile.preferred_language !== 'en';
+    
+    if (shouldAutoTranslate) {
+      handleTranslate();
+    }
+  }, [hasText, isMine, profile?.preferred_language]);
+
   const handleTranslate = async () => {
-    const textToTranslate = message.decrypted_text || message.decryptedText;
+    const textToTranslate = hasText;
     if (!textToTranslate || isTranslating) return;
 
     setIsTranslating(true);
     try {
       const targetLang = profile?.preferred_language || 'en';
-      // Using MyMemory Translation API (Free, no key required for basic usage)
+      // Using MyMemory Translation API
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToTranslate)}&langpair=auto|${targetLang}`
       );
       const data = await res.json();
-      if (data.responseData) {
-        setTranslatedText(data.responseData.translatedText);
+      if (data.responseData && data.responseData.translatedText) {
+        // Only set if the translation is different from original
+        if (data.responseData.translatedText.toLowerCase().trim() !== textToTranslate.toLowerCase().trim()) {
+          setTranslatedText(data.responseData.translatedText);
+        }
       }
     } catch (err) {
       console.error('Translation failed:', err);
@@ -38,8 +57,6 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
       setIsTranslating(false);
     }
   };
-
-  const hasText = message.decrypted_text || message.decryptedText;
 
   return (
     <div className={`message-bubble ${isMine ? 'mine' : 'theirs'}`}>
@@ -54,14 +71,17 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
                 {translatedText}
               </div>
             )}
-            {!isMine && !translatedText && (
+            {/* Show manual button only if auto-translate didn't run or failed, and it's not mine */}
+            {!isMine && !translatedText && !isTranslating && (
               <button 
                 className="translate-btn" 
                 onClick={handleTranslate}
-                disabled={isTranslating}
               >
-                {isTranslating ? 'Translating...' : 'Translate'}
+                Translate
               </button>
+            )}
+            {isTranslating && !translatedText && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--gold)', opacity: 0.6 }}>Translating...</span>
             )}
           </>
         ) : (
