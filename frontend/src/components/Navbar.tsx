@@ -4,15 +4,14 @@ import { useAuthStore } from '../store/auth';
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { profile, isAuthenticated, logout } = useAuthStore();
 
   // Don't show complex nav on auth pages
   const isAuthPage = ['/login', '/signup'].includes(location.pathname);
 
-  // Supabase doesn't automatically populate school details, 
-  // so we'll use a fallback or user metadata
-  const schoolName = user?.user_metadata?.school_name || 'Colorado Technical University';
-  const schoolLogo = user?.user_metadata?.school_logo;
+  // Get school details from the profile store
+  const schoolName = profile?.school?.name || 'Colorado Technical University';
+  const schoolLogo = profile?.school?.logo_url;
 
   return (
     <nav className="nav">
@@ -33,6 +32,7 @@ export default function Navbar() {
                   src={schoolLogo} 
                   alt={schoolName} 
                   className="school-logo-img"
+                  style={{ height: '32px', width: 'auto', marginRight: '10px' }}
                 />
               )}
               <div className="school-info-stack">

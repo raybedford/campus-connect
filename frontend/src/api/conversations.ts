@@ -90,9 +90,23 @@ export async function searchUsers(query: string): Promise<any[]> {
 }
 
 export async function getSchoolDirectory(): Promise<any[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Get current user's school_id
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('school_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || !profile.school_id) return [];
+
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
+    .eq('school_id', profile.school_id)
+    .neq('id', user.id) // Exclude self
     .eq('is_verified', true)
     .order('display_name', { ascending: true });
 

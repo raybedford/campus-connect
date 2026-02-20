@@ -3,31 +3,51 @@ import { supabase } from '../lib/supabase';
 
 interface AuthState {
   user: any | null;
+  profile: any | null;
   isAuthenticated: boolean;
   initialize: () => Promise<void>;
-  setAuth: (accessToken: string, refreshToken: string) => void;
+  setAuth: () => void;
   setUser: (user: any) => void;
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  profile: null,
   isAuthenticated: false, 
 
   initialize: async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       set({ user: session.user, isAuthenticated: true });
+      // Fetch profile with school details
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*, school:schools(*)')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profile) set({ profile });
     }
     
     // Listen for auth changes
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
       set({ user: session?.user || null, isAuthenticated: !!session });
+      
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*, school:schools(*)')
+          .eq('id', session.user.id)
+          .single();
+        if (profile) set({ profile });
+      } else {
+        set({ profile: null });
+      }
     });
   },
 
   setAuth: () => {
-    // Supabase handles this in the background, but we can set UI state
     set({ isAuthenticated: true });
   },
 
@@ -35,6 +55,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     await supabase.auth.signOut();
-    set({ user: null, isAuthenticated: false });
+    set({ user: null, profile: null, isAuthenticated: false });
   },
 }));

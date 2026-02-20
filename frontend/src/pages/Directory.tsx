@@ -61,9 +61,9 @@ export default function Directory() {
                 style={{ padding: '1.25rem 1rem' }}
               >
                 <div onClick={() => startDM(userId)} style={{ flex: 1, cursor: 'pointer' }}>
-                  <div className="name">{user.displayName}</div>
+                  <div className="name">{user.display_name}</div>
                   <div className="email" style={{ fontSize: '0.75rem' }}>{user.email}</div>
-                  {user.showPhoneInProfile && user.phoneNumber && (
+                  {user.show_phone_in_profile && user.phone_number && (
                     <div style={{ marginTop: '0.4rem' }}>
                       <a 
                         href={`tel:${user.phoneNumber}`} 

@@ -125,12 +125,41 @@ CREATE POLICY "Update own public key" ON public_keys FOR UPDATE USING (auth.uid(
 
 -- AUTOMATIC PROFILE CREATION TRIGGER
 -- When a user signs up via Supabase Auth, create a profile entry automatically.
+-- It also parses the .edu domain to find or create a school.
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
+DECLARE
+    email_domain TEXT;
+    target_school_id UUID;
+    school_name TEXT;
 BEGIN
-  INSERT INTO public.profiles (id, email, display_name)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name');
-  RETURN new;
+    -- Extract domain from email (e.g., student@coloradotech.edu -> coloradotech.edu)
+    email_domain := split_part(new.email, '@', 2);
+
+    -- Check if it's a valid .edu domain (basic check)
+    IF email_domain LIKE '%.edu' THEN
+        -- Find or create school
+        SELECT id INTO target_school_id FROM public.schools WHERE domain = email_domain;
+        
+        IF target_school_id IS NULL THEN
+            -- Format a default name from the domain (coloradotech.edu -> Coloradotech)
+            school_name := initcap(split_part(email_domain, '.', 1));
+            
+            INSERT INTO public.schools (domain, name, logo_url)
+            VALUES (email_domain, school_name, 'https://logo.clearbit.com/' || email_domain)
+            RETURNING id INTO target_school_id;
+        END IF;
+    END IF;
+
+    INSERT INTO public.profiles (id, email, display_name, school_id, is_verified)
+    VALUES (
+        new.id, 
+        new.email, 
+        new.raw_user_meta_data->>'full_name', 
+        target_school_id,
+        TRUE -- Auto-verify profile status for demo/testing
+    );
+    RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

@@ -7,20 +7,20 @@ import CampusBuilding from '../components/CampusBuilding';
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user, setUser } = useAuthStore();
+  const { user, profile } = useAuthStore();
   
-  // Supabase user metadata is in user_metadata
-  const [displayName, setDisplayName] = useState(user?.user_metadata?.full_name || user?.display_name || '');
+  // Use metadata or profile data
+  const [displayName, setDisplayName] = useState(profile?.display_name || user?.user_metadata?.full_name || '');
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      setDisplayName(user.user_metadata?.full_name || user.display_name || '');
+    if (profile) {
+      setDisplayName(profile.display_name);
     }
-  }, [user]);
+  }, [profile]);
 
   const handleUpdate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -31,26 +31,22 @@ export default function Settings() {
         full_name: displayName
       });
       
-      // Refresh user state
-      const { data: { user: updatedUser } } = await supabase.auth.getUser();
-      setUser(updatedUser);
+      // Update local profile state
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .update({ display_name: displayName })
+        .eq('id', user.id)
+        .select()
+        .single();
+        
+      if (updatedProfile) {
+        // We'd ideally have a setProfile in the store, 
+        // but for now, the listener in useAuthStore might catch it.
+      }
+
       setMessage('Profile updated successfully');
     } catch (err: any) {
       setMessage(err.message || 'Failed to update profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const scheduleDeletion = async () => {
-    setLoading(true);
-    try {
-      // Supabase doesn't have a simple 'delete self' for users without a specialized edge function
-      // For this demo, we'll just sign out.
-      await supabase.auth.signOut();
-      navigate('/login');
-    } catch (err) {
-      setMessage('Failed to sign out');
     } finally {
       setLoading(false);
     }
@@ -73,6 +69,10 @@ export default function Settings() {
           <div className="form-group">
             <label className="form-label">Email</label>
             <input type="text" value={user?.email || ''} disabled />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Institution</label>
+            <input type="text" value={profile?.school?.name || 'Searching...'} disabled />
           </div>
           <button className="btn btn-primary" onClick={() => handleUpdate()} disabled={loading} style={{ width: '100%' }}>
             Save Basic Info
@@ -102,7 +102,7 @@ export default function Settings() {
                 Are you sure you want to sign out?
               </p>
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                <button className="btn btn-primary" onClick={scheduleDeletion} style={{ background: 'var(--error)', fontSize: '0.75rem', padding: '0.4rem 1rem' }}>
+                <button className="btn btn-primary" onClick={() => { supabase.auth.signOut(); navigate('/login'); }} style={{ background: 'var(--error)', fontSize: '0.75rem', padding: '0.4rem 1rem' }}>
                   Confirm
                 </button>
                 <button className="btn btn-outline" onClick={() => setShowDeleteConfirm(false)} style={{ fontSize: '0.75rem', padding: '0.4rem 1rem' }}>
