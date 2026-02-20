@@ -1,0 +1,43 @@
+services:
+  # Backend Service
+  - type: web
+    name: campus-connect-api
+    runtime: node
+    plan: free # This is the 100% free tier
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
+        sync: false
+      - key: MAIL_HOST
+        value: sandbox.smtp.mailtrap.io
+      - key: MAIL_PORT
+        value: 2525
+
+  # Frontend Service
+  - type: static
+    name: campus-connect-ui
+    runtime: static
+    plan: free # This is the 100% free tier
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: campus-connect-api
+          property: host

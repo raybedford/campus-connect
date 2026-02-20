@@ -1,37 +1,39 @@
-import client from './client';
-import type { TokenResponse } from '../types';
+import { supabase } from '../lib/supabase';
 
-export async function signup(email: string, password: string, display_name: string) {
-  const res = await client.post('/auth/signup', { email, password, display_name });
-  return res.data;
-}
+export const login = async (email, password) => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (error) throw error;
+  return data;
+};
 
-export async function verifyEmail(email: string, code: string): Promise<TokenResponse> {
-  const res = await client.post('/auth/verify', { email, code });
-  return res.data;
-}
+export const signup = async (email, password, displayName) => {
+  if (!email.endsWith('.edu')) {
+    throw new Error('Only .edu emails are allowed.');
+  }
 
-export async function login(email: string, password: string): Promise<TokenResponse> {
-  const res = await client.post('/auth/login', { email, password });
-  return res.data;
-}
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: displayName,
+      },
+    },
+  });
+  if (error) throw error;
+  return data;
+};
 
-export async function getMe() {
-  const res = await client.get('/users/me');
-  return res.data;
-}
+export const logout = async () => {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+};
 
-export async function updateMe(data: { displayName: string }) {
-  const res = await client.patch('/users/me', data);
-  return res.data;
-}
-
-export async function forgotPassword(email: string) {
-  const res = await client.post('/auth/forgot-password', { email });
-  return res.data;
-}
-
-export async function resetPassword(data: any) {
-  const res = await client.post('/auth/reset-password', data);
-  return res.data;
-}
+export const getSession = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return data.session;
+};

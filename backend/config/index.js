@@ -12,5 +12,12 @@ module.exports = {
   CORS_ORIGINS: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['http://localhost:5173'],
   UPLOAD_DIR: 'backend/uploads',
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
-  FILE_MAX_AGE_HOURS: 24
+  FILE_MAX_AGE_HOURS: 24,
+
+  // Mailtrap / SMTP Config
+  MAIL_HOST: process.env.MAIL_HOST || 'sandbox.smtp.mailtrap.io',
+  MAIL_PORT: process.env.MAIL_PORT || 2525,
+  MAIL_USER: process.env.MAIL_USER,
+  MAIL_PASS: process.env.MAIL_PASS,
+  MAIL_FROM: process.env.MAIL_FROM || 'no-reply@campus-connect.edu'
 };
