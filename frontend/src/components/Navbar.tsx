@@ -32,7 +32,10 @@ export default function Navbar() {
                   src={schoolLogo} 
                   alt={schoolName} 
                   className="school-logo-img"
-                  style={{ height: '32px', width: 'auto', marginRight: '10px' }}
+                  style={{ height: '32px', width: 'auto', marginRight: '10px', borderRadius: '4px' }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
                 />
               )}
               <div className="school-info-stack">
