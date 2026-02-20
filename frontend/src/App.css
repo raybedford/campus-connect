@@ -226,6 +226,50 @@
   position: relative;
 }
 
+.chat-input-area input {
+  flex: 1;
+  background: var(--black-card);
+  border: 1px solid var(--black-border);
+  border-radius: 100px;
+  padding: 0.6rem 1.25rem;
+  color: var(--cream);
+  font-family: var(--sans);
+}
+
+.file-attach-btn {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 1.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  transition: transform 0.2s;
+}
+
+.file-attach-btn:hover {
+  transform: scale(1.1);
+}
+
+.send-btn {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+}
+
+.send-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* GIF / Emoji Pickers */
 .picker-container {
   position: absolute;
