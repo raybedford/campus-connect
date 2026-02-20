@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import type { Message } from '../types';
+// import type { Message } from '../types';
 
 interface MessageState {
-  messages: Record<string, Message[]>; // conversationId -> messages
-  setMessages: (conversationId: string, msgs: Message[]) => void;
-  addMessage: (conversationId: string, msg: Message) => void;
-  prependMessages: (conversationId: string, msgs: Message[]) => void;
+  messages: Record<string, any[]>; // conversationId -> messages
+  setMessages: (conversationId: string, msgs: any[]) => void;
+  addMessage: (conversationId: string, msg: any) => void;
+  prependMessages: (conversationId: string, msgs: any[]) => void;
 }
 
 export const useMessageStore = create<MessageState>((set) => ({
@@ -19,7 +19,8 @@ export const useMessageStore = create<MessageState>((set) => ({
   addMessage: (conversationId, msg) =>
     set((state) => {
       const existing = state.messages[conversationId] || [];
-      if (existing.some((m) => m.id === msg.id)) return state;
+      const msgId = msg._id || msg.id;
+      if (existing.some((m) => (m._id || m.id) === msgId)) return state;
       return {
         messages: { ...state.messages, [conversationId]: [...existing, msg] },
       };

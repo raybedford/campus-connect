@@ -1,56 +1,73 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-import { useWebSocket } from './hooks/useWebSocket';
+import Navbar from './components/Navbar';
+import { useSocket } from './hooks/useSocket';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Signup from './pages/Signup';
 import Verify from './pages/Verify';
 import ConversationList from './pages/ConversationList';
 import Chat from './pages/Chat';
 import NewConversation from './pages/NewConversation';
+import Directory from './pages/Directory';
 import Settings from './pages/Settings';
 import './App.css';
 
 function AppRoutes() {
-  useWebSocket();
+  useSocket();
   return (
-    <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/verify" element={<Verify />} />
-        <Route
-          path="/conversations"
-          element={
-            <ProtectedRoute>
-              <ConversationList />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/conversations/new"
-          element={
-            <ProtectedRoute>
-              <NewConversation />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/conversations/:id"
-          element={
-            <ProtectedRoute>
-              <Chat />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/conversations" replace />} />
-      </Routes>
+    <>
+      <Navbar />
+      <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/verify" element={<Verify />} />
+          <Route
+            path="/directory"
+            element={
+              <ProtectedRoute>
+                <Directory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/conversations"
+            element={
+              <ProtectedRoute>
+                <ConversationList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/conversations/new"
+            element={
+              <ProtectedRoute>
+                <NewConversation />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/conversations/:id"
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/conversations" replace />} />
+        </Routes>
+      </>
   );
 }
 

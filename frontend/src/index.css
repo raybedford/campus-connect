@@ -1,1 +1,312 @@
-/* Reset handled in App.css */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --gold: #CFB87C;
+  --gold-dim: #A1865B;
+  --gold-bright: #e0cc96;
+  --black: #0a0a0a;
+  --black-light: #111;
+  --black-card: #151515;
+  --black-border: #1e1e1e;
+  --cream: #f5f0e8;
+  --cream-dim: #a89f8b;
+  --error: #ff4d4f;
+  
+  --serif: 'Instrument Serif', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background-color: var(--black);
+  color: var(--cream);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Noise overlay matching demo.html */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Global Button Styles */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 100px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: all 0.25s;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dim) 100%);
+  color: var(--black);
+  box-shadow: 0 4px 20px rgba(207,184,124,0.25);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(207,184,124,0.35);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--cream);
+  border: 1.5px solid rgba(207,184,124,0.2);
+}
+
+.btn-outline:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* Form Styles */
+input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--black-card);
+  border: 1px solid var(--black-border);
+  border-radius: 8px;
+  color: var(--cream);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+/* Page Layout */
+.page {
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 1rem;
+  position: relative;
+  z-index: 1; /* Above noise */
+}
+
+.page-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Navbar matching demo.html */
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1.25rem 3rem;
+  background: rgba(10,10,10,0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(207,184,124,0.08);
+}
+
+.nav-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-left, .nav-right {
+  flex: 1;
+  display: flex;
+}
+
+.nav-right {
+  justify-content: flex-end;
+}
+
+.nav-center {
+  flex: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.school-affiliation {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(207,184,124,0.08);
+  padding: 0.5rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(207,184,124,0.15);
+}
+
+.school-info-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.school-logo-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: white;
+  padding: 3px;
+}
+
+.school-name-text {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.auth-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--gold-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 0.2rem;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #52c41a; /* Green for verified */
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(82,196,26,0.6);
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.6; transform: scale(1); }
+}
+
+.nav-logo {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  color: var(--gold);
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+
+.nav-links { display: flex; gap: 2.5rem; }
+
+.nav-links button {
+  color: var(--cream-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.nav-links button:hover { color: var(--gold); }
+
+.btn-nav-gold {
+  color: var(--gold) !important;
+  border: 1px solid rgba(207,184,124,0.3) !important;
+  padding: 0.4rem 1rem !important;
+  border-radius: 100px !important;
+}
+
+.btn-nav-gold:hover {
+  background: rgba(207,184,124,0.08) !important;
+}
+
+/* Page spacing for fixed nav */
+.page {
+  padding-top: 6rem !important;
+}
+
+.auth-container {
+  padding-top: 0 !important;
+}
+
+
+.header h2 {
+  font-family: var(--serif);
+  font-size: 1.75rem;
+  color: var(--gold);
+  font-weight: 400;
+}
+
+.icon-btn {
+  font-size: 1.25rem;
+  color: var(--cream-dim);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  color: var(--gold);
+  background: rgba(207,184,124,0.08);
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  margin-top: 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.empty-state p {
+  color: var(--cream-dim);
+}
+
+/* Error Text */
+.error {
+  color: var(--error);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}

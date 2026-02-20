@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { login, getMe } from '../api/auth';
-import { publishKey } from '../api/keys';
-import { generateAndStoreKeyPair, hasKeyPair } from '../crypto/keyManager';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
+import { login } from '../api/auth';
 import CampusBuilding from '../components/CampusBuilding';
 
 export default function Login() {
@@ -11,69 +9,78 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
-  const { setTokens, setUser } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      const tokens = await login(email, password);
-      setTokens(tokens.access_token, tokens.refresh_token);
-      const user = await getMe();
-      setUser(user);
-
-      // Ensure keypair exists on this device
-      if (!(await hasKeyPair())) {
-        const keyPair = await generateAndStoreKeyPair();
-        await publishKey(keyPair.publicKey);
-      }
-
+      const { access_token, refresh_token } = await login(email, password);
+      setAuth(access_token, refresh_token);
       navigate('/conversations');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed');
+      setError(err.response?.data?.error || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="page page-center">
-      <CampusBuilding size={120} />
-      <h1>Campus Connect</h1>
-      <p className="subtitle">Sign in to your account</p>
-
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@school.edu"
-            required
-          />
+    <div className="auth-container">
+      <div className="auth-card">
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <CampusBuilding size={64} />
         </div>
-        <div className="form-group">
-          <label>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Your password"
-            required
-          />
-        </div>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-primary mt-1" disabled={loading}>
-          {loading ? 'Signing in...' : 'Sign In'}
-        </button>
-      </form>
+        <h1 className="auth-title">Campus Connect</h1>
+        <p className="auth-desc">Secure, encrypted messaging for students.</p>
 
-      <p className="text-center mt-2">
-        Don't have an account? <Link to="/signup" className="link">Sign up</Link>
-      </p>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Email (.edu)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="student@university.edu"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Password</label>
+              <Link to="/forgot-password" style={{ fontSize: '0.75rem', color: 'var(--gold)', textDecoration: 'none' }}>
+                Forgot?
+              </Link>
+            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          {error && <p className="error">{error}</p>}
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: '1rem' }}
+            disabled={loading}
+          >
+            {loading ? 'Signing In...' : 'Sign In'}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          Don't have an account? 
+          <Link to="/signup" className="auth-link">Sign Up</Link>
+        </div>
+      </div>
     </div>
   );
 }

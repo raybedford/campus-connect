@@ -1,70 +1,76 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { verify, getMe } from '../api/auth';
-import { publishKey } from '../api/keys';
-import { generateAndStoreKeyPair, hasKeyPair } from '../crypto/keyManager';
 import { useAuthStore } from '../store/auth';
+import { verifyEmail } from '../api/auth';
 import CampusBuilding from '../components/CampusBuilding';
 
 export default function Verify() {
   const location = useLocation();
-  const email = (location.state as any)?.email || '';
+  const navigate = useNavigate();
+  const [email, setEmail] = useState(location.state?.email || '');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const { setTokens, setUser } = useAuthStore();
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      const tokens = await verify(email, code);
-      setTokens(tokens.access_token, tokens.refresh_token);
-      const user = await getMe();
-      setUser(user);
-
-      // Generate E2EE keypair after first verification
-      if (!(await hasKeyPair())) {
-        const keyPair = await generateAndStoreKeyPair();
-        await publishKey(keyPair.publicKey);
-      }
-
+      const { access_token, refresh_token } = await verifyEmail(email, code);
+      setAuth(access_token, refresh_token);
       navigate('/conversations');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Verification failed');
+      setError(err.response?.data?.error || 'Verification failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="page page-center">
-      <CampusBuilding size={100} />
-      <h1>Verify Your Email</h1>
-      <p className="subtitle">
-        Enter the 6-digit code sent to {email || 'your email'}
-      </p>
-
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Verification Code</label>
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="000000"
-            maxLength={6}
-            required
-            style={{ textAlign: 'center', letterSpacing: '0.5rem', fontSize: '1.5rem' }}
-          />
+    <div className="auth-container">
+      <div className="auth-card">
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <CampusBuilding size={64} />
         </div>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-primary mt-1" disabled={loading}>
-          {loading ? 'Verifying...' : 'Verify'}
-        </button>
-      </form>
+        <h1 className="auth-title">Verify Email</h1>
+        <p className="auth-desc">Enter the 6-digit code sent to<br/><span style={{ color: 'var(--cream)' }}>{email}</span></p>
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Verification Code</label>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="123456"
+              maxLength={6}
+              style={{ textAlign: 'center', letterSpacing: '0.2em', fontSize: '1.25rem' }}
+              required
+            />
+          </div>
+
+          {error && <p className="error" style={{ textAlign: 'center' }}>{error}</p>}
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: '1rem' }}
+            disabled={loading || code.length !== 6}
+          >
+            {loading ? 'Verifying...' : 'Verify & Continue'}
+          </button>
+        </form>
+
+        <div className="auth-footer" style={{ marginTop: '2rem' }}>
+          Didn't receive a code?
+          <button className="auth-link" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
+            Resend
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

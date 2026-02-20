@@ -3,13 +3,16 @@ import client from './client';
 export async function uploadFile(
   file: Blob,
   messageId: string,
-  conversationId: string,
+  _conversationId: string, // Not strictly required by current Node.js file upload logic but kept for future scope
   filename: string,
+  totalRecipients: number
 ) {
   const formData = new FormData();
   formData.append('file', file, filename);
-  formData.append('message_id', messageId);
-  formData.append('conversation_id', conversationId);
+  // Backend uses camelCase for the database model
+  formData.append('messageId', messageId);
+  formData.append('originalFilename', filename);
+  formData.append('totalRecipients', totalRecipients.toString());
 
   const res = await client.post('/files/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

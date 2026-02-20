@@ -1,6 +1,6 @@
 import nacl from 'tweetnacl';
 import { toBase64, fromBase64 } from '../utils/base64';
-import type { EncryptedPayload } from '../types';
+// import type { EncryptedPayload } from '../types';
 
 /**
  * Encrypt a file with a random symmetric key (nacl.secretbox),
@@ -10,7 +10,7 @@ export function encryptFile(
   fileData: Uint8Array,
   recipients: { userId: string; publicKeyB64: string }[],
   senderSecretKey: Uint8Array,
-): { encryptedBlob: Uint8Array; keyPayloads: EncryptedPayload[] } {
+): { encryptedBlob: Uint8Array; keyPayloads: any[] } {
   // Generate random symmetric key
   const symmetricKey = nacl.randomBytes(nacl.secretbox.keyLength);
   const fileNonce = nacl.randomBytes(nacl.secretbox.nonceLength);
@@ -24,15 +24,15 @@ export function encryptFile(
   encryptedBlob.set(encryptedFile, fileNonce.length);
 
   // Encrypt symmetric key per recipient
-  const keyPayloads: EncryptedPayload[] = recipients.map((r) => {
+  const keyPayloads: any[] = recipients.map((r) => {
     const nonce = nacl.randomBytes(nacl.box.nonceLength);
     const recipientPK = fromBase64(r.publicKeyB64);
     const encrypted = nacl.box(symmetricKey, nonce, recipientPK, senderSecretKey);
     if (!encrypted) throw new Error('Key encryption failed');
     return {
-      recipient_id: r.userId,
-      ciphertext_b64: toBase64(encrypted),
-      nonce_b64: toBase64(nonce),
+      recipientId: r.userId,
+      ciphertextB64: toBase64(encrypted),
+      nonceB64: toBase64(nonce),
     };
   });
 
@@ -44,13 +44,13 @@ export function encryptFile(
  */
 export function decryptFile(
   encryptedBlob: Uint8Array,
-  keyPayload: EncryptedPayload,
+  keyPayload: any,
   senderPublicKeyB64: string,
   recipientSecretKey: Uint8Array,
 ): Uint8Array {
   // Decrypt symmetric key
-  const keyCiphertext = fromBase64(keyPayload.ciphertext_b64);
-  const keyNonce = fromBase64(keyPayload.nonce_b64);
+  const keyCiphertext = fromBase64(keyPayload.ciphertextB64 || keyPayload.ciphertext_b64);
+  const keyNonce = fromBase64(keyPayload.nonceB64 || keyPayload.nonce_b64);
   const senderPK = fromBase64(senderPublicKeyB64);
 
   const symmetricKey = nacl.box.open(keyCiphertext, keyNonce, senderPK, recipientSecretKey);

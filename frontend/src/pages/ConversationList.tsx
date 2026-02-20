@@ -1,22 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getConversations } from '../api/conversations';
-import { getMe } from '../api/auth';
+// import { getMe } from '../api/auth';
 import { useAuthStore } from '../store/auth';
 import { useConversationStore } from '../store/conversation';
 import CampusBuilding from '../components/CampusBuilding';
-import type { Conversation } from '../types';
+// import type { Conversation } from '../types';
 
-function getConversationDisplayName(conv: Conversation, currentUserId: string): string {
+function getConversationDisplayName(conv: any, currentUserId: string): string {
   if (conv.type === 'group') return conv.name || 'Group Chat';
-  const other = conv.members.find((m) => m.user_id !== currentUserId);
-  return other?.display_name || 'Unknown';
+  // Backend returns members with .user as an object { _id, displayName, email }
+  const other = conv.members.find((m: any) => (m.user._id || m.user) !== currentUserId);
+  return other?.user?.displayName || other?.display_name || 'Unknown';
 }
 
 function getInitials(name: string): string {
+  if (!name) return '?';
   return name
     .split(' ')
     .map((w) => w[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase()
     .slice(0, 2);
@@ -24,28 +27,27 @@ function getInitials(name: string): string {
 
 export default function ConversationList() {
   const navigate = useNavigate();
-  const { user, setUser, logout } = useAuthStore();
-  const { conversations, setConversations } = useConversationStore();
+  const { user, logout } = useAuthStore();
+  const { setConversations } = useConversationStore();
+  const [conversations, setLocalConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        if (!user) {
-          const me = await getMe();
-          setUser(me);
-        }
         const convs = await getConversations();
         setConversations(convs);
-      } catch {
-        logout();
-        navigate('/login');
+        setLocalConversations(convs);
+      } catch (err) {
+        console.error('Failed to load conversations:', err);
+        // logout();
+        // navigate('/login');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [user, setConversations]);
 
   if (loading) {
     return (
@@ -60,6 +62,9 @@ export default function ConversationList() {
       <div className="header">
         <h2>Messages</h2>
         <div className="header-actions">
+          <button className="icon-btn" onClick={() => navigate('/directory')} title="School Directory" style={{ fontSize: '1.1rem' }}>
+            &#127891;
+          </button>
           <button className="icon-btn" onClick={() => navigate('/settings')} title="Settings">
             &#9881;
           </button>
@@ -69,7 +74,7 @@ export default function ConversationList() {
         </div>
       </div>
 
-      {conversations.length === 0 ? (
+      {!conversations || conversations.length === 0 ? (
         <div className="empty-state">
           <CampusBuilding size={80} />
           <p>No conversations yet</p>
@@ -81,11 +86,12 @@ export default function ConversationList() {
         <ul className="conv-list">
           {conversations.map((conv) => {
             const displayName = getConversationDisplayName(conv, user!.id);
+            const convId = conv._id || conv.id;
             return (
               <li
-                key={conv.id}
+                key={convId}
                 className="conv-item"
-                onClick={() => navigate(`/conversations/${conv.id}`)}
+                onClick={() => navigate(`/conversations/${convId}`)}
               >
                 <div className="conv-avatar">{getInitials(displayName)}</div>
                 <div className="conv-info">

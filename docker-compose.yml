@@ -1,14 +1,15 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: campus
-      POSTGRES_PASSWORD: campus_dev
-      POSTGRES_DB: campus_connect
+  mongodb:
+    image: mongo:6-jammy
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mongodata:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
 
 volumes:
-  pgdata:
+  mongodata:

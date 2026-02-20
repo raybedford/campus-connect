@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../api/auth';
-import { isEduEmail } from '../utils/edu';
 import CampusBuilding from '../components/CampusBuilding';
 
 export default function Signup() {
@@ -14,71 +13,82 @@ export default function Signup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    if (!isEduEmail(email)) {
+    if (!email.endsWith('.edu')) {
       setError('Please use a .edu email address');
       return;
     }
-
+    setError('');
     setLoading(true);
+
     try {
       await signup(email, password, displayName);
       navigate('/verify', { state: { email } });
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Signup failed');
+      setError(err.response?.data?.error || 'Signup failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="page page-center">
-      <CampusBuilding size={100} />
-      <h1>Join Campus Connect</h1>
-      <p className="subtitle">Create your account with a .edu email</p>
+    <div className="auth-container">
+      <div className="auth-card">
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <CampusBuilding size={64} />
+        </div>
+        <h1 className="auth-title">Get Started</h1>
+        <p className="auth-desc">Join your campus community.</p>
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Display Name</label>
-          <input
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Your name"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@school.edu"
-            required
-          />
-        </div>
-        <div className="form-group">
-          <label>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Choose a password"
-            required
-            minLength={6}
-          />
-        </div>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-primary mt-1" disabled={loading}>
-          {loading ? 'Creating account...' : 'Create Account'}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Full Name</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="First Last"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email (.edu)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="student@university.edu"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={8}
+            />
+          </div>
 
-      <p className="text-center mt-2">
-        Already have an account? <Link to="/login" className="link">Sign in</Link>
-      </p>
+          {error && <p className="error">{error}</p>}
+
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: '1rem' }}
+            disabled={loading}
+          >
+            {loading ? 'Creating Account...' : 'Sign Up'}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          Already have an account? 
+          <Link to="/login" className="auth-link">Sign In</Link>
+        </div>
+      </div>
     </div>
   );
 }
