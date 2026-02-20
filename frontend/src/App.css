@@ -194,6 +194,28 @@
   text-align: right;
 }
 
+.translate-btn {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 0.7rem;
+  padding: 0;
+  margin-top: 0.4rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+.translated-text {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(207,184,124,0.3);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
 .chat-input-area {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--black-border);

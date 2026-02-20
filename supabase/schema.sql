@@ -18,6 +18,7 @@ CREATE TABLE profiles (
   school_id UUID REFERENCES schools(id),
   avatar_url TEXT,
   phone_number TEXT,
+  preferred_language TEXT DEFAULT 'en',
   is_verified BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -151,13 +152,14 @@ BEGIN
         END IF;
     END IF;
 
-    INSERT INTO public.profiles (id, email, display_name, school_id, is_verified)
+    INSERT INTO public.profiles (id, email, display_name, school_id, is_verified, preferred_language)
     VALUES (
         new.id, 
         new.email, 
         new.raw_user_meta_data->>'full_name', 
         target_school_id,
-        TRUE -- Auto-verify profile status for demo/testing
+        TRUE, -- Auto-verify profile status for demo/testing
+        'en'
     );
     RETURN new;
 END;

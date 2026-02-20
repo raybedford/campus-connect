@@ -5,12 +5,25 @@ import { updateMe } from '../api/auth';
 import { supabase } from '../lib/supabase';
 import CampusBuilding from '../components/CampusBuilding';
 
+const LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'de', name: 'German' },
+  { code: 'zh', name: 'Chinese' },
+  { code: 'hi', name: 'Hindi' },
+  { code: 'ar', name: 'Arabic' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'ko', name: 'Korean' },
+];
+
 export default function Settings() {
   const navigate = useNavigate();
   const { user, profile } = useAuthStore();
   
-  // Use metadata or profile data
   const [displayName, setDisplayName] = useState(profile?.display_name || user?.user_metadata?.full_name || '');
+  const [preferredLang, setPreferredLang] = useState(profile?.preferred_language || 'en');
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -19,6 +32,7 @@ export default function Settings() {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name);
+      setPreferredLang(profile.preferred_language || 'en');
     }
   }, [profile]);
 
@@ -31,19 +45,21 @@ export default function Settings() {
         full_name: displayName
       });
       
-      // Update local profile state
-      const { data: updatedProfile } = await supabase
+      // Update local profile state including language
+      const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
-        .update({ display_name: displayName })
+        .update({ 
+          display_name: displayName,
+          preferred_language: preferredLang
+        })
         .eq('id', user.id)
-        .select()
+        .select('*, school:schools(*)')
         .single();
         
-      if (updatedProfile) {
-        // We'd ideally have a setProfile in the store, 
-        // but for now, the listener in useAuthStore might catch it.
-      }
-
+      if (updateError) throw updateError;
+      
+      // The initialize listener in useAuthStore will update the global state,
+      // but we can also manually trigger a refresh if needed.
       setMessage('Profile updated successfully');
     } catch (err: any) {
       setMessage(err.message || 'Failed to update profile');
@@ -74,6 +90,30 @@ export default function Settings() {
             <label className="form-label">Institution</label>
             <input type="text" value={profile?.school?.name || 'Searching...'} disabled />
           </div>
+          
+          <div className="form-group">
+            <label className="form-label">Preferred Translation Language</label>
+            <select 
+              value={preferredLang} 
+              onChange={(e) => setPreferredLang(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.8rem',
+                background: 'var(--black)',
+                color: 'var(--cream)',
+                border: '1px solid var(--black-border)',
+                borderRadius: '8px'
+              }}
+            >
+              {LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code}>{lang.name}</option>
+              ))}
+            </select>
+            <p style={{ fontSize: '0.7rem', color: 'var(--cream-dim)', marginTop: '0.4rem' }}>
+              Messages will be translated into this language when you click "Translate".
+            </p>
+          </div>
+
           <button className="btn btn-primary" onClick={() => handleUpdate()} disabled={loading} style={{ width: '100%' }}>
             Save Basic Info
           </button>
