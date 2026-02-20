@@ -19,13 +19,13 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
 
   const hasText = message.decrypted_text || message.decryptedText;
 
+  // Check if text is a GIF format: [gif:https://...]
+  const isGif = hasText?.startsWith('[gif:') && hasText?.endsWith(']');
+  const gifUrl = isGif ? hasText.slice(5, -1) : null;
+
   useEffect(() => {
-    // Only auto-translate if:
-    // 1. It's not my message
-    // 2. We have text
-    // 3. User's language isn't 'en' or is specifically set
     const userLang = profile?.preferred_language || 'en';
-    const shouldAutoTranslate = !isMine && hasText && !translatedText && userLang !== 'en';
+    const shouldAutoTranslate = !isMine && hasText && !translatedText && userLang !== 'en' && !isGif;
     
     if (shouldAutoTranslate) {
       handleTranslate();
@@ -39,7 +39,6 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
     setIsTranslating(true);
     try {
       const targetLang = profile?.preferred_language || 'en';
-      // MyMemory API: auto detection of source
       const res = await fetch(
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToTranslate)}&langpair=auto|${targetLang}`
       );
@@ -47,9 +46,6 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
       
       if (data.responseData && data.responseData.translatedText) {
         const resultText = data.responseData.translatedText;
-        
-        // If the API detected the source language matches the target language, 
-        // it often returns the same string.
         if (resultText.toLowerCase().trim() !== textToTranslate.toLowerCase().trim()) {
           setTranslatedText(resultText);
         }
@@ -67,14 +63,19 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
       <div className="msg-content">
         {hasText ? (
           <>
-            <div>{hasText}</div>
+            {isGif ? (
+              <img src={gifUrl!} alt="GIF" className="gif-msg-img" />
+            ) : (
+              <div>{hasText}</div>
+            )}
+            
             {translatedText && (
               <div className="translated-text">
                 <span style={{ fontSize: '0.65rem', display: 'block', opacity: 0.6, marginBottom: '2px' }}>Translated:</span>
                 {translatedText}
               </div>
             )}
-            {!isMine && !translatedText && !isTranslating && (
+            {!isMine && !translatedText && !isTranslating && !isGif && (
               <button 
                 className="translate-btn" 
                 onClick={handleTranslate}

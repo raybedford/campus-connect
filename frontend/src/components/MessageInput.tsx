@@ -6,74 +6,122 @@ interface Props {
   conversationId: string;
 }
 
-export default function MessageInput({ onSend, onFileSelect, conversationId }: Props) {
+const EMOJIS = ['😀', '😂', '😍', '👍', '🔥', '🙌', '🎉', '📚', '🎓', '💻', '🤔', '😎', '💯', '✨', '👋', '👀'];
+
+export default function MessageInput({ onSend, onFileSelect, conversationId: _ }: Props) {
   const [text, setText] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showGif, setShowGif] = useState(false);
+  const [gifQuery, setGifQuery] = useState('');
+  const [gifs, setGifs] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
     onSend(trimmed);
     setText('');
+    setShowEmoji(false);
+    setShowGif(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
-
-    // Send typing event
-    const ws = (window as any).__campusWs as WebSocket | undefined;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
-          type: 'typing',
-          conversation_id: conversationId,
-        })
-      );
+  const handleGifSearch = async (q: string) => {
+    setGifQuery(q);
+    if (!q) return;
+    try {
+      const res = await fetch(`https://tenor.googleapis.com/v2/search?q=${q}&key=LIVD19UA6V23&limit=8`);
+      const data = await res.json();
+      setGifs(data.results || []);
+    } catch (err) {
+      console.error('GIF search failed:', err);
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onFileSelect) {
-      onFileSelect(file);
-    }
-    e.target.value = '';
+  const sendGif = (url: string) => {
+    onSend(`[gif:${url}]`);
+    setShowGif(false);
+    setGifQuery('');
+    setGifs([]);
+  };
+
+  const addEmoji = (emoji: string) => {
+    setText(prev => prev + emoji);
   };
 
   return (
-    <form className="chat-input-area" onSubmit={handleSubmit}>
-      {onFileSelect && (
-        <>
-          <button
-            type="button"
-            className="file-attach-btn"
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach file"
-          >
-            &#128206;
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            style={{ display: 'none' }}
-            onChange={handleFileChange}
-          />
-        </>
+    <div className="chat-input-wrapper" style={{ position: 'relative' }}>
+      {showEmoji && (
+        <div className="picker-container">
+          <div className="emoji-grid">
+            {EMOJIS.map(e => (
+              <div key={e} className="emoji-item" onClick={() => addEmoji(e)}>{e}</div>
+            ))}
+          </div>
+        </div>
       )}
-      <input
-        type="text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Type a message..."
-      />
-      <button type="submit" className="send-btn" disabled={!text.trim()}>
-        Send
-      </button>
-    </form>
+
+      {showGif && (
+        <div className="picker-container">
+          <div className="gif-search-bar">
+            <input 
+              type="text" 
+              placeholder="Search GIFs..." 
+              value={gifQuery} 
+              onChange={(e) => handleGifSearch(e.target.value)}
+              style={{ width: '100%', padding: '0.5rem', background: 'var(--black)', color: 'white', border: '1px solid var(--black-border)', borderRadius: '6px' }}
+            />
+          </div>
+          <div className="gif-grid">
+            {gifs.map(g => (
+              <img 
+                key={g.id} 
+                src={g.media_formats.tinygif.url} 
+                className="gif-item" 
+                onClick={() => sendGif(g.media_formats.gif.url)}
+              />
+            ))}
+            {gifQuery && gifs.length === 0 && <p style={{ padding: '1rem', textAlign: 'center', fontSize: '0.8rem' }}>No GIFs found</p>}
+          </div>
+        </div>
+      )}
+
+      <form className="chat-input-area" onSubmit={handleSubmit}>
+        <button type="button" className="icon-btn" onClick={() => { setShowEmoji(!showEmoji); setShowGif(false); }}>😊</button>
+        <button type="button" className="icon-btn" onClick={() => { setShowGif(!showGif); setShowEmoji(false); }} style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>GIF</button>
+        
+        {onFileSelect && (
+          <>
+            <button
+              type="button"
+              className="file-attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach file"
+            >
+              &#128206;
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file && onFileSelect) onFileSelect(file);
+                e.target.value = '';
+              }}
+            />
+          </>
+        )}
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a message..."
+        />
+        <button type="submit" className="send-btn" disabled={!text.trim()}>
+          Send
+        </button>
+      </form>
+    </div>
   );
 }
