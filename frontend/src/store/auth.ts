@@ -8,6 +8,7 @@ interface AuthState {
   user: any | null;
   profile: any | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   initialize: () => Promise<void>;
   setAuth: () => void;
   setUser: (user: any) => void;
@@ -18,52 +19,63 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   profile: null,
   isAuthenticated: false, 
+  isInitialized: false,
 
   initialize: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      set({ user: session.user, isAuthenticated: true });
-      
-      // Initialize E2EE Keys if missing
-      try {
-        const hasKeys = await hasKeyPair();
-        if (!hasKeys) {
-          const { publicKey } = await generateAndStoreKeyPair();
-          await publishKey(publicKey);
-        }
-      } catch (err) {
-        console.error('E2EE Key initialization failed during boot:', err);
-      }
-
-      // Fetch profile with school details
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*, school:schools(*)')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (profile) set({ profile });
-    }
-    
-    // Listen for auth changes
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      set({ user: session?.user || null, isAuthenticated: !!session });
-      
-      if (session?.user) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        set({ user: session.user, isAuthenticated: true });
+        
         // Initialize E2EE Keys if missing
-        const hasKeys = await hasKeyPair();
-        if (!hasKeys) {
-          const { publicKey } = await generateAndStoreKeyPair();
-          await publishKey(publicKey).catch(console.error);
+        try {
+          const hasKeys = await hasKeyPair();
+          if (!hasKeys) {
+            const { publicKey } = await generateAndStoreKeyPair();
+            await publishKey(publicKey);
+          }
+        } catch (err) {
+          console.error('E2EE Key initialization failed during boot:', err);
         }
 
+        // Fetch profile with school details
         const { data: profile } = await supabase
           .from('profiles')
           .select('*, school:schools(*)')
           .eq('id', session.user.id)
           .single();
+        
         if (profile) set({ profile });
-      } else {
+      }
+    } finally {
+      set({ isInitialized: true });
+    }
+    
+    // Listen for auth changes
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      set({ user: session?.user || null, isAuthenticated: !!session });
+      
+      const currentUserId = session?.user?.id;
+
+      if ((event === 'SIGNED_IN' || session?.user) && currentUserId) {
+        // Initialize E2EE Keys if missing
+        try {
+          const hasKeys = await hasKeyPair();
+          if (!hasKeys) {
+            const { publicKey } = await generateAndStoreKeyPair();
+            await publishKey(publicKey).catch(console.error);
+          }
+        } catch (e) {
+          console.error('Key generation error on auth change:', e);
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*, school:schools(*)')
+          .eq('id', currentUserId)
+          .single();
+        if (profile) set({ profile });
+      } else if (event === 'SIGNED_OUT') {
         set({ profile: null });
       }
     });
