@@ -78,10 +78,9 @@ CREATE POLICY "Public schools are viewable by everyone" ON schools FOR SELECT US
 CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
--- Conversations: Viewable if you are a member and at the same school
+-- Conversations: Viewable if you are a member
 CREATE POLICY "View conversations if member" ON conversations FOR SELECT
 USING (
-  school_id = public.get_my_school_id() AND
   EXISTS (
     SELECT 1 FROM conversation_members 
     WHERE conversation_id = id AND user_id = auth.uid()
@@ -103,11 +102,8 @@ CREATE POLICY "Join/Add members" ON conversation_members FOR INSERT WITH CHECK (
 CREATE POLICY "View messages if member" ON messages FOR SELECT
 USING (
   EXISTS (
-    SELECT 1 FROM conversations c
-    JOIN conversation_members cm ON c.id = cm.conversation_id
-    WHERE c.id = messages.conversation_id 
-    AND cm.user_id = auth.uid()
-    AND c.school_id = public.get_my_school_id()
+    SELECT 1 FROM conversation_members 
+    WHERE conversation_id = conversation_id AND user_id = auth.uid()
   )
 );
 CREATE POLICY "Send message if member" ON messages FOR INSERT 

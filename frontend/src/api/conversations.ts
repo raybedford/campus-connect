@@ -49,13 +49,42 @@ export async function createConversation(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  // Fetch current user's profile for school_id
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('school_id')
+    .eq('id', user.id)
+    .single();
+
+  const allMembers = [...new Set([...memberIds, user.id])];
+
+  // If DM, check if it already exists
+  if (type === 'dm' && memberIds.length === 1) {
+    const otherId = memberIds[0];
+    
+    // Find conversations where both are members
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('*, members:conversation_members(user_id)')
+      .eq('type', 'dm');
+
+    const duplicate = existing?.find(conv => 
+      conv.members.length === 2 && 
+      conv.members.some((m: any) => m.user_id === user.id) &&
+      conv.members.some((m: any) => m.user_id === otherId)
+    );
+
+    if (duplicate) return duplicate;
+  }
+
   // 1. Create conversation
   const { data: conversation, error: convError } = await supabase
     .from('conversations')
     .insert({
       type,
       name,
-      created_by: user.id
+      created_by: user.id,
+      school_id: profile?.school_id
     })
     .select()
     .single();
@@ -63,7 +92,6 @@ export async function createConversation(
   if (convError) throw convError;
 
   // 2. Add members
-  const allMembers = [...new Set([...memberIds, user.id])];
   const memberEntries = allMembers.map(uid => ({
     conversation_id: conversation.id,
     user_id: uid
