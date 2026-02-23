@@ -427,4 +427,10 @@ input:focus {
   .conv-name {
     font-size: 1.1rem;
   }
+
+  .desktop-text { display: none !important; }
+  .mobile-text { display: inline !important; }
 }
+
+.desktop-text { display: inline; }
+.mobile-text { display: none; }

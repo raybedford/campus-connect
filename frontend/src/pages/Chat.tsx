@@ -352,11 +352,12 @@ export default function Chat() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button 
-              className="btn btn-primary" 
+              className="btn btn-primary add-student-btn" 
               onClick={() => setShowAddMember(true)}
               style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', borderRadius: '100px', height: 'auto', minWidth: 'fit-content' }}
             >
-              + STUDENT
+              <span className="desktop-text">+ STUDENT</span>
+              <span className="mobile-text">+</span>
             </button>
             <button 
               className="icon-btn" 
