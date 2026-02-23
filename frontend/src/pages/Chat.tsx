@@ -17,11 +17,14 @@ import TypingIndicator from '../components/TypingIndicator';
 import { useChatSubscription } from '../hooks/useChatSubscription';
 import { usePresence } from '../hooks/usePresence';
 
+const EMPTY_ARRAY: any[] = [];
+const EMPTY_SET = new Set<string>();
+
 export default function Chat() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const storeMessages = useMessageStore((s) => s.messages[id!] || []);
+  const storeMessages = useMessageStore((s) => s.messages[id!] || EMPTY_ARRAY);
   const setMessages = useMessageStore((s) => s.setMessages);
   const addMessage = useMessageStore((s) => s.addMessage);
   
@@ -35,7 +38,8 @@ export default function Chat() {
   const [isAdding, setIsAdding] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || new Set());
+  const processingRef = useRef(false);
+  const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || EMPTY_SET);
 
   // Use the new Supabase Realtime hook
   useChatSubscription(id || null);
@@ -82,17 +86,25 @@ export default function Chat() {
   // Sync display messages when store updates (realtime)
   useEffect(() => {
     const sync = async () => {
-      if (storeMessages.length > displayMessages.length) {
-        // Find new messages
-        const newMsgs = storeMessages.filter(sm => !displayMessages.some(dm => dm.id === sm.id));
-        if (newMsgs.length > 0) {
+      if (processingRef.current) return;
+      
+      const newMsgs = storeMessages.filter(sm => !displayMessages.some(dm => dm.id === sm.id));
+      if (newMsgs.length > 0) {
+        processingRef.current = true;
+        try {
           const decryptedNew = await decryptMessagesList(newMsgs, memberKeys);
-          setDisplayMessages(prev => [...prev, ...decryptedNew]);
+          setDisplayMessages(prev => {
+            // Re-check inside setter to be absolutely sure no duplicates are added
+            const uniqueNew = decryptedNew.filter(n => !prev.some(p => p.id === n.id));
+            return [...prev, ...uniqueNew];
+          });
+        } finally {
+          processingRef.current = false;
         }
       }
     };
     sync();
-  }, [storeMessages, memberKeys]);
+  }, [storeMessages, memberKeys, displayMessages.length]);
 
   async function decryptMessagesList(msgs: any[], keys: Record<string, string>): Promise<any[]> {
     const results: any[] = [];
