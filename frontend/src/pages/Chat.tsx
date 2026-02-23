@@ -335,30 +335,21 @@ export default function Chat() {
   return (
     <>
       <div className="chat-page">
-        <div className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
-            <button className="icon-btn" onClick={() => navigate('/conversations')}>
-              &#8592;
-            </button>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
-              {conversation?.type === 'group' && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  {conversation.members.length} members
-                </div>
-              )}
+        <div className="chat-header" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <button className="icon-btn" onClick={() => navigate('/conversations')}>
+                &#8592;
+              </button>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
+                {conversation?.type === 'group' && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    {conversation.members.length} members
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button 
-              className="btn btn-primary add-student-btn" 
-              onClick={() => setShowAddMember(true)}
-              style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', borderRadius: '100px', height: 'auto', minWidth: 'fit-content' }}
-            >
-              <span className="desktop-text">+ STUDENT</span>
-              <span className="mobile-text">+</span>
-            </button>
             <button 
               className="icon-btn" 
               onClick={() => setShowFiles(!showFiles)} 
@@ -368,6 +359,14 @@ export default function Chat() {
               &#128193;
             </button>
           </div>
+
+          <button 
+            className="btn btn-primary" 
+            onClick={() => setShowAddMember(true)}
+            style={{ width: '100%', fontSize: '0.85rem', padding: '0.6rem', borderRadius: '12px' }}
+          >
+            + ADD STUDENT TO THIS CHAT
+          </button>
         </div>
 
         {showFiles && (
