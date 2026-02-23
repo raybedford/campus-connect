@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { hasKeyPair, generateAndStoreKeyPair } from '../crypto/keyManager';
+import { publishKey } from '../api/keys';
 
 interface AuthState {
   user: any | null;
@@ -20,6 +22,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       set({ user: session.user, isAuthenticated: true });
+      
+      // Initialize E2EE Keys if missing
+      const hasKeys = await hasKeyPair();
+      if (!hasKeys) {
+        const { publicKey } = await generateAndStoreKeyPair();
+        await publishKey(publicKey);
+      }
+
       // Fetch profile with school details
       const { data: profile } = await supabase
         .from('profiles')
@@ -35,6 +45,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: session?.user || null, isAuthenticated: !!session });
       
       if (session?.user) {
+        // Initialize E2EE Keys if missing
+        const hasKeys = await hasKeyPair();
+        if (!hasKeys) {
+          const { publicKey } = await generateAndStoreKeyPair();
+          await publishKey(publicKey).catch(console.error);
+        }
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('*, school:schools(*)')
