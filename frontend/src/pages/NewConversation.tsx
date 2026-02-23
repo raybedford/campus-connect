@@ -1,34 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchUsers, createConversation } from '../api/conversations';
+import { createConversation, getSchoolDirectory } from '../api/conversations';
 import CampusBuilding from '../components/CampusBuilding';
 
 export default function NewConversation() {
   const [mode, setMode] = useState<'dm' | 'group'>('dm');
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
+  const [directory, setDirectory] = useState<any[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
   const [groupName, setGroupName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSearch = async (q: string) => {
-    setQuery(q);
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const users = await searchUsers(q);
-      setResults(users);
-    } catch {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await getSchoolDirectory();
+        setDirectory(data);
+      } catch (err) {
+        console.error('Failed to load directory:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const toggleUserSelection = (user: any) => {
     const userId = user._id || user.id;
@@ -38,6 +35,11 @@ export default function NewConversation() {
       setSelectedUsers([...selectedUsers, user]);
     }
   };
+
+  const filteredStudents = directory.filter(u => 
+    u.display_name?.toLowerCase().includes(query.toLowerCase()) || 
+    u.email?.toLowerCase().includes(query.toLowerCase())
+  );
 
   const handleCreate = async (singleUserId?: string) => {
     setError('');
@@ -102,7 +104,7 @@ export default function NewConversation() {
         <input
           type="text"
           value={query}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or email..."
         />
       </div>
@@ -122,10 +124,10 @@ export default function NewConversation() {
 
       <div className="results-container" style={{ background: 'var(--black-card)', borderRadius: '12px', border: '1px solid var(--black-border)', overflow: 'hidden' }}>
         {loading ? (
-          <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--cream-dim)' }}>Searching...</p>
-        ) : results.length > 0 ? (
-          <ul className="search-results" style={{ margin: 0 }}>
-            {results.map((user) => {
+          <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--cream-dim)' }}>Loading students...</p>
+        ) : filteredStudents.length > 0 ? (
+          <ul className="search-results" style={{ margin: 0, maxHeight: '400px', overflowY: 'auto' }}>
+            {filteredStudents.map((user) => {
               const userId = user._id || user.id;
               const isSelected = selectedUsers.find(u => (u._id || u.id) === userId);
               return (
@@ -148,12 +150,10 @@ export default function NewConversation() {
               );
             })}
           </ul>
-        ) : query.length >= 2 ? (
-          <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--cream-dim)' }}>No students found</p>
         ) : (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--cream-dim)' }}>
              <CampusBuilding size={48} />
-             <p style={{ fontSize: '0.85rem' }}>Search for students in your school directory</p>
+             <p style={{ fontSize: '0.85rem' }}>No students found in your school directory</p>
           </div>
         )}
       </div>
