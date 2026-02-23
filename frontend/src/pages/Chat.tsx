@@ -347,26 +347,23 @@ export default function Chat() {
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {conversation?.type === 'group' && (
-              <button 
-                className="icon-btn" 
-                onClick={() => setShowAddMember(true)}
-                title="Add Member"
-              >
-                +
-              </button>
-            )}
-            <button 
-              className="icon-btn" 
-              onClick={() => setShowFiles(!showFiles)} 
-              title="Shared Files"
-              style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.5rem' }}
-            >
-              &#128193;
-            </button>
-          </div>
-        </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      className="icon-btn" 
+                      onClick={() => setShowAddMember(true)}
+                      title="Add Member"
+                    >
+                      +
+                    </button>
+                    <button 
+                      className="icon-btn" 
+                      onClick={() => setShowFiles(!showFiles)} 
+                      title="Shared Files"
+                      style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.5rem' }}
+                    >
+                      &#128193;
+                    </button>
+                  </div>        </div>
 
         {showFiles && (
           <div className="shared-files-panel" style={{ background: 'var(--black-card)', borderBottom: '1px solid var(--black-border)', padding: '1rem', maxHeight: '200px', overflowY: 'auto' }}>

@@ -159,7 +159,13 @@ export async function addMemberToConversation(
 
   if (memberError) throw memberError;
 
-  // 2. If we have re-encrypted messages, update them
+  // 2. Update conversation type to 'group' since it now has 3+ people
+  await supabase
+    .from('conversations')
+    .update({ type: 'group' })
+    .eq('id', conversationId);
+
+  // 3. If we have re-encrypted messages, update them
   if (reEncryptedMessages && reEncryptedMessages.length > 0) {
     // Perform updates in a loop (or batch if possible, but RPC is cleaner for batch)
     for (const item of reEncryptedMessages) {
