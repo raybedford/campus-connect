@@ -21,9 +21,11 @@ export default function Chat() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const messages = useMessageStore((s) => s.messages[id!] || []);
+  const storeMessages = useMessageStore((s) => s.messages[id!] || []);
   const setMessages = useMessageStore((s) => s.setMessages);
   const addMessage = useMessageStore((s) => s.addMessage);
+  
+  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [conversation, setConversation] = useState<Conversation | any>(null);
   const [memberKeys, setMemberKeys] = useState<Record<string, string>>({});
   const [showFiles, setShowFiles] = useState(false);
@@ -39,7 +41,7 @@ export default function Chat() {
   useChatSubscription(id || null);
   const { sendTyping } = usePresence(id || null);
 
-  const sharedFiles = messages.filter(m => m.message_type === 'file');
+  const sharedFiles = displayMessages.filter(m => m.message_type === 'file');
 
   useEffect(() => {
     if (showAddMember) {
@@ -69,6 +71,7 @@ export default function Chat() {
         // Decrypt loaded messages
         const decrypted = await decryptMessagesList(msgs, keyMap);
         setMessages(id, decrypted);
+        setDisplayMessages(decrypted);
       } catch (err) {
         console.error('Failed to load chat:', err);
       }
@@ -76,11 +79,32 @@ export default function Chat() {
     load();
   }, [id, user]);
 
+  // Sync display messages when store updates (realtime)
+  useEffect(() => {
+    const sync = async () => {
+      if (storeMessages.length > displayMessages.length) {
+        // Find new messages
+        const newMsgs = storeMessages.filter(sm => !displayMessages.some(dm => dm.id === sm.id));
+        if (newMsgs.length > 0) {
+          const decryptedNew = await decryptMessagesList(newMsgs, memberKeys);
+          setDisplayMessages(prev => [...prev, ...decryptedNew]);
+        }
+      }
+    };
+    sync();
+  }, [storeMessages, memberKeys]);
+
   async function decryptMessagesList(msgs: any[], keys: Record<string, string>): Promise<any[]> {
     const results: any[] = [];
 
     for (const msg of msgs) {
       try {
+        // If already decrypted by another hook/process
+        if (msg.decrypted_text) {
+          results.push(msg);
+          continue;
+        }
+
         const payloads = msg.content ? JSON.parse(msg.content) : [];
         const senderId = msg.sender_id || (msg.sender?.id);
 
@@ -121,7 +145,7 @@ export default function Chat() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [displayMessages]);
 
   const handleSend = async (text: string) => {
     if (!id || !user || !conversation) return;
@@ -152,7 +176,9 @@ export default function Chat() {
     try {
       const msg = await sendMessage(id, 'text', JSON.stringify(payloads));
       // Optimistic UI update
-      addMessage(id, { ...msg, decrypted_text: text });
+      const optimisticMsg = { ...msg, decrypted_text: text };
+      addMessage(id, optimisticMsg);
+      setDisplayMessages(prev => [...prev, optimisticMsg]);
     } catch (err) {
       console.error('Failed to send message:', err);
     }
@@ -177,7 +203,9 @@ export default function Chat() {
     try {
       const { path } = await uploadFile(new Blob([encryptedBlob as any]), 'temp', id, file.name, recipients.length);
       const msg = await sendMessage(id, 'file', JSON.stringify(keyPayloads), path);
-      addMessage(id, { ...msg, decrypted_text: `[File: ${file.name}]` });
+      const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
+      addMessage(id, optimisticMsg);
+      setDisplayMessages(prev => [...prev, optimisticMsg]);
     } catch (err) {
       console.error('File upload failed:', err);
     }
@@ -198,7 +226,7 @@ export default function Chat() {
 
         if (secretKey && targetPublicKey) {
           // Re-encrypt all decryptable messages for the new user
-          for (const msg of messages) {
+          for (const msg of displayMessages) {
             if (msg.decrypted_text) {
               const payloads = JSON.parse(msg.content);
               const newPayload = encryptForRecipient(
@@ -312,7 +340,7 @@ export default function Chat() {
         )}
 
         <div className="chat-messages">
-          {messages.map((msg: any) => (
+          {displayMessages.map((msg: any) => (
             <MessageBubble
               key={msg.id}
               message={msg}
