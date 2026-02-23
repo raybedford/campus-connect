@@ -62,13 +62,24 @@ CREATE TABLE public_keys (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS (Row Level Security) - This replaces your Backend API logic!
+-- PUSH TOKENS (For Notifications)
+CREATE TABLE push_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  device_type TEXT, -- 'ios', 'android', 'web'
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, token)
+);
+
+-- RLS (Row Level Security)
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 
 -- POLICIES
 
@@ -78,6 +89,10 @@ CREATE POLICY "Public schools are viewable by everyone" ON schools FOR SELECT US
 -- Profiles: Viewable by all authenticated users
 CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+
+-- Push Tokens: Private to the user
+CREATE POLICY "Users can manage own tokens" ON public.push_tokens 
+FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- HELPER FOR CONVERSATION ACCESS (Prevents Recursion)
 CREATE OR REPLACE FUNCTION public.get_my_conv_ids()
@@ -120,8 +135,6 @@ CREATE POLICY "Upsert own public key" ON public_keys FOR INSERT WITH CHECK (auth
 CREATE POLICY "Update own public key" ON public_keys FOR UPDATE USING (auth.uid() = user_id);
 
 -- AUTOMATIC PROFILE CREATION TRIGGER
--- When a user signs up via Supabase Auth, create a profile entry automatically.
--- It also parses the .edu domain to find or create a school.
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 DECLARE
@@ -130,19 +143,15 @@ DECLARE
     target_school_id UUID;
     school_name TEXT;
 BEGIN
-    -- Extract and lowercase domain
     email_domain := lower(split_part(new.email, '@', 2));
 
-    -- Normalize .edu domains (e.g., student.ctuonline.edu -> ctuonline.edu)
     IF email_domain LIKE '%.edu' THEN
         base_domain := regexp_replace(email_domain, '^(student\.|mail\.|my\.|email\.|webmail\.|live\.)', '');
         
-        -- Special Mapping for CTU (Normalize to ctuonline.edu)
         IF base_domain = 'coloradotech.edu' THEN
             base_domain := 'ctuonline.edu';
         END IF;
 
-        -- Find or create school using the base domain
         SELECT id INTO target_school_id FROM public.schools WHERE domain = base_domain;
         
         IF target_school_id IS NULL THEN
@@ -171,6 +180,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger for profile creation
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -187,6 +197,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to update conversation updated_at when a new message is sent
+DROP TRIGGER IF EXISTS on_message_inserted ON messages;
 CREATE TRIGGER on_message_inserted
   AFTER INSERT ON messages
   FOR EACH ROW EXECUTE FUNCTION update_conversation_timestamp();
