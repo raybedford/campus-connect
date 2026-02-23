@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { del } from 'idb-keyval';
 import { supabase } from '../lib/supabase';
 import { hasKeyPair, generateAndStoreKeyPair } from '../crypto/keyManager';
 import { publishKey } from '../api/keys';
@@ -76,6 +77,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     await supabase.auth.signOut();
+    // Clear E2EE keys on logout for security
+    await del('campus_connect_private_key');
+    await del('campus_connect_public_key');
+    
     set({ user: null, profile: null, isAuthenticated: false });
   },
 }));

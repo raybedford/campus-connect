@@ -24,7 +24,6 @@ export function useChatSubscription(conversationId: string | null) {
         },
         async (payload) => {
           const newMsg = payload.new as any;
-          console.log('New message received!', newMsg);
 
           // 1. Fetch sender profile
           const { data: sender } = await supabase

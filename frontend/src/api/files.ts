@@ -10,7 +10,9 @@ export async function uploadFile(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const filePath = `${conversationId}/${Date.now()}-${filename}`;
+  const fileExt = filename.split('.').pop();
+  const randomId = Math.random().toString(36).substring(2, 11);
+  const filePath = `${conversationId}/${Date.now()}-${randomId}.${fileExt}`;
 
   // You must create a bucket named 'chat-files' in your Supabase storage!
   const { data, error } = await supabase.storage
