@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getConversation } from '../api/conversations';
+import { getConversation, addMemberToConversation, getSchoolDirectory } from '../api/conversations';
 import { getMessages, sendMessage } from '../api/messages';
-import { getBatchPublicKeys } from '../api/keys';
+import { getBatchPublicKeys, getPublicKey } from '../api/keys';
 import { useAuthStore } from '../store/auth';
 import { useMessageStore } from '../store/message';
 import { usePresenceStore } from '../store/presence';
-import { encryptForMultipleRecipients, decryptMessage } from '../crypto/encryption';
+import { encryptForMultipleRecipients, decryptMessage, encryptForRecipient } from '../crypto/encryption';
 import { encryptFile } from '../crypto/fileEncryption';
 import { getPrivateKey } from '../crypto/keyManager';
 import { uploadFile } from '../api/files';
@@ -27,6 +27,11 @@ export default function Chat() {
   const [conversation, setConversation] = useState<Conversation | any>(null);
   const [memberKeys, setMemberKeys] = useState<Record<string, string>>({});
   const [showFiles, setShowFiles] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [directory, setDirectory] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || new Set());
 
@@ -35,6 +40,12 @@ export default function Chat() {
   const { sendTyping } = usePresence(id || null);
 
   const sharedFiles = messages.filter(m => m.message_type === 'file');
+
+  useEffect(() => {
+    if (showAddMember) {
+      getSchoolDirectory().then(setDirectory).catch(console.error);
+    }
+  }, [showAddMember]);
 
   useEffect(() => {
     if (!id || !user) return;
@@ -77,19 +88,26 @@ export default function Chat() {
           (p: any) => p.recipient_id === user?.id || p.recipientId === user?.id
         );
 
-        if (myPayload && keys[senderId]) {
-          const text = await decryptMessage(
-            {
-              recipient_id: myPayload.recipient_id || myPayload.recipientId,
-              ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
-              nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
-            },
-            keys[senderId]
-          );
-          results.push({ 
-            ...msg, 
-            decrypted_text: text 
-          });
+        if (myPayload) {
+          // Use encryptor_id if present (for re-encrypted messages), otherwise fallback to senderId
+          const effectiveSenderId = myPayload.encryptor_id || myPayload.encryptorId || senderId;
+          
+          if (keys[effectiveSenderId]) {
+            const text = await decryptMessage(
+              {
+                recipient_id: myPayload.recipient_id || myPayload.recipientId,
+                ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
+                nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
+              },
+              keys[effectiveSenderId]
+            );
+            results.push({ 
+              ...msg, 
+              decrypted_text: text 
+            });
+          } else {
+            results.push(msg);
+          }
         } else {
           results.push(msg);
         }
@@ -165,6 +183,66 @@ export default function Chat() {
     }
   };
 
+  const handleAddMember = async (targetUser: any) => {
+    if (!id || !user) return;
+    
+    const shareHistory = window.confirm(`Would you like to share the entire conversation history with ${targetUser.display_name}? This will allow them to decrypt previous messages.`);
+    
+    setIsAdding(true);
+    try {
+      let reEncrypted: any[] = [];
+
+      if (shareHistory) {
+        const secretKey = await getPrivateKey();
+        const targetPublicKey = await getPublicKey(targetUser.id);
+
+        if (secretKey && targetPublicKey) {
+          // Re-encrypt all decryptable messages for the new user
+          for (const msg of messages) {
+            if (msg.decrypted_text) {
+              const payloads = JSON.parse(msg.content);
+              const newPayload = encryptForRecipient(
+                msg.decrypted_text,
+                targetPublicKey.publicKeyB64,
+                secretKey,
+                user.id // We are the encryptor
+              );
+              
+              // Add recipient_id to match structure
+              (newPayload as any).recipient_id = targetUser.id;
+              
+              payloads.push(newPayload);
+              reEncrypted.push({
+                messageId: msg.id,
+                content: JSON.stringify(payloads)
+              });
+            }
+          }
+        }
+      }
+
+      await addMemberToConversation(id, targetUser.id, reEncrypted);
+      
+      // Update local state
+      const updatedConv = await getConversation(id);
+      setConversation(updatedConv);
+      setShowAddMember(false);
+      setSearchQuery('');
+      
+      // Optimistic key map update
+      const targetKey = await getPublicKey(targetUser.id);
+      if (targetKey) {
+        setMemberKeys(prev => ({ ...prev, [targetUser.id]: targetKey.publicKeyB64 }));
+      }
+
+    } catch (err) {
+      console.error('Failed to add member:', err);
+      alert('Failed to add member to conversation.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   const otherMember = conversation?.members?.find((m: any) => (m.user?.id || m.user_id || m.user) !== user?.id);
   const displayName = conversation
     ? conversation.type === 'dm'
@@ -172,73 +250,129 @@ export default function Chat() {
       : conversation.name || 'Group Chat'
     : 'Loading...';
 
+  const filteredDirectory = directory.filter(u => 
+    !conversation?.members?.some((m: any) => (m.user?.id || m.user_id || m.user) === u.id) &&
+    (u.display_name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
-    <div className="chat-page">
-      <div className="chat-header">
-        <button className="icon-btn" onClick={() => navigate('/conversations')}>
-          &#8592;
-        </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
-          {conversation?.type === 'group' && (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              {conversation.members.length} members
-            </div>
-          )}
+    <>
+      <div className="chat-page">
+        <div className="chat-header">
+          <button className="icon-btn" onClick={() => navigate('/conversations')}>
+            &#8592;
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
+            {conversation?.type === 'group' && (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {conversation.members.length} members
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {conversation?.type === 'group' && (
+              <button 
+                className="icon-btn" 
+                onClick={() => setShowAddMember(true)}
+                title="Add Member"
+              >
+                +
+              </button>
+            )}
+            <button 
+              className="icon-btn" 
+              onClick={() => setShowFiles(!showFiles)} 
+              title="Shared Files"
+              style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.5rem' }}
+            >
+              &#128193;
+            </button>
+          </div>
         </div>
-        <button 
-          className="icon-btn" 
-          onClick={() => setShowFiles(!showFiles)} 
-          title="Shared Files"
-          style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.5rem' }}
-        >
-          &#128193;
-        </button>
+
+        {showFiles && (
+          <div className="shared-files-panel" style={{ background: 'var(--black-card)', borderBottom: '1px solid var(--black-border)', padding: '1rem', maxHeight: '200px', overflowY: 'auto' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gold)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Shared Files</div>
+            {sharedFiles.length === 0 ? (
+              <p style={{ fontSize: '0.85rem', color: 'var(--cream-dim)' }}>No files shared in this chat.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                {sharedFiles.map((msg: any) => (
+                  <div key={msg.id} style={{ background: 'var(--black)', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--black-border)', fontSize: '0.8rem' }}>
+                    {msg.decrypted_text || '[Encrypted File]'}
+                    <div style={{ fontSize: '0.65rem', color: 'var(--cream-dim)' }}>
+                      {new Date(msg.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="chat-messages">
+          {messages.map((msg: any) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isMine={(msg.sender_id || msg.sender?.id || msg.sender) === user?.id}
+              senderName={msg.sender?.display_name || 'User'}
+            />
+          ))}
+          <TypingIndicator
+            typingUserIds={typingUsers}
+            members={conversation?.members || []}
+            currentUserId={user?.id || ''}
+          />
+          <div ref={messagesEndRef} />
+        </div>
+
+        <MessageInput 
+          onSend={handleSend} 
+          onFileSelect={handleFileSelect} 
+          onTyping={() => sendTyping(true)}
+          conversationId={id!} 
+        />
       </div>
 
-      {showFiles && (
-        <div className="shared-files-panel" style={{ background: 'var(--black-card)', borderBottom: '1px solid var(--black-border)', padding: '1rem', maxHeight: '200px', overflowY: 'auto' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gold)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Shared Files</div>
-          {sharedFiles.length === 0 ? (
-            <p style={{ fontSize: '0.85rem', color: 'var(--cream-dim)' }}>No files shared in this chat.</p>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              {sharedFiles.map((msg: any) => (
-                <div key={msg.id} style={{ background: 'var(--black)', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--black-border)', fontSize: '0.8rem' }}>
-                  {msg.decrypted_text || '[Encrypted File]'}
-                  <div style={{ fontSize: '0.65rem', color: 'var(--cream-dim)' }}>
-                    {new Date(msg.created_at).toLocaleDateString()}
+      {showAddMember && (
+        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="auth-card" style={{ width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ color: 'var(--gold)', marginBottom: '1rem' }}>Add to Chat</h3>
+            <input 
+              type="text" 
+              placeholder="Search students..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ marginBottom: '1rem' }}
+            />
+            <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+              {filteredDirectory.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--cream-dim)', fontSize: '0.8rem' }}>No students found</p>
+              ) : (
+                filteredDirectory.map(u => (
+                  <div key={u.id} className="search-result-item" style={{ padding: '0.75rem', marginBottom: '0.5rem', borderRadius: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.display_name}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--cream-dim)' }}>{u.email}</div>
+                    </div>
+                    <button 
+                      className="btn-nav-gold" 
+                      onClick={() => handleAddMember(u)}
+                      disabled={isAdding}
+                      style={{ fontSize: '0.7rem' }}
+                    >
+                      {isAdding ? '...' : 'ADD'}
+                    </button>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
+            <button className="btn btn-outline" onClick={() => setShowAddMember(false)} style={{ width: '100%', marginTop: '1rem' }}>Cancel</button>
+          </div>
         </div>
       )}
-
-      <div className="chat-messages">
-        {messages.map((msg: any) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            isMine={(msg.sender_id || msg.sender?.id || msg.sender) === user?.id}
-            senderName={msg.sender?.display_name || 'User'}
-          />
-        ))}
-        <TypingIndicator
-          typingUserIds={typingUsers}
-          members={conversation?.members || []}
-          currentUserId={user?.id || ''}
-        />
-        <div ref={messagesEndRef} />
-      </div>
-
-      <MessageInput 
-        onSend={handleSend} 
-        onFileSelect={handleFileSelect} 
-        onTyping={() => sendTyping(true)}
-        conversationId={id!} 
-      />
-    </div>
+    </>
   );
 }

@@ -43,14 +43,24 @@ export function useChatSubscription(conversationId: string | null) {
               const myPayload = payloads.find((p: any) => (p.recipient_id || p.recipientId) === user?.id);
               
               if (myPayload) {
-                decrypted_text = await decryptMessage(
-                  {
-                    recipient_id: myPayload.recipient_id || myPayload.recipientId,
-                    ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
-                    nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
-                  },
-                  keyData.publicKeyB64
-                );
+                // Use encryptor_id if present (for shared history), otherwise use sender public key
+                const effectiveEncryptorId = myPayload.encryptor_id || myPayload.encryptorId || newMsg.sender_id;
+                
+                // Fetch effective encryptor's public key
+                const encryptorKeyData = effectiveEncryptorId === newMsg.sender_id 
+                  ? keyData 
+                  : await getPublicKey(effectiveEncryptorId);
+
+                if (encryptorKeyData) {
+                  decrypted_text = await decryptMessage(
+                    {
+                      recipient_id: myPayload.recipient_id || myPayload.recipientId,
+                      ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
+                      nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
+                    },
+                    encryptorKeyData.publicKeyB64
+                  );
+                }
               }
             } catch (err) {
               console.error('Decryption failed for realtime message:', err);

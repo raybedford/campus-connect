@@ -132,3 +132,30 @@ export async function getSchoolDirectory(): Promise<any[]> {
   if (error) throw error;
   return data || [];
 }
+
+export async function addMemberToConversation(
+  conversationId: string,
+  newMemberId: string,
+  reEncryptedMessages?: { messageId: string; content: string }[]
+): Promise<void> {
+  // 1. Add member
+  const { error: memberError } = await supabase
+    .from('conversation_members')
+    .insert({
+      conversation_id: conversationId,
+      user_id: newMemberId
+    });
+
+  if (memberError) throw memberError;
+
+  // 2. If we have re-encrypted messages, update them
+  if (reEncryptedMessages && reEncryptedMessages.length > 0) {
+    // Perform updates in a loop (or batch if possible, but RPC is cleaner for batch)
+    for (const item of reEncryptedMessages) {
+      await supabase
+        .from('messages')
+        .update({ content: item.content })
+        .eq('id', item.messageId);
+    }
+  }
+}

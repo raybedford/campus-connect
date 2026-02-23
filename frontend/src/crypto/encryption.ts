@@ -10,7 +10,8 @@ export function encryptForRecipient(
   plaintext: string,
   recipientPublicKeyB64: string,
   senderSecretKey: Uint8Array,
-): { ciphertext_b64: string; nonce_b64: string } {
+  encryptorId?: string
+): { recipient_id?: string; ciphertext_b64: string; nonce_b64: string; encryptor_id?: string } {
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
   const messageBytes = encoder.encode(plaintext);
   const recipientPK = fromBase64(recipientPublicKeyB64);
@@ -21,6 +22,7 @@ export function encryptForRecipient(
   return {
     ciphertext_b64: toBase64(encrypted),
     nonce_b64: toBase64(nonce),
+    encryptor_id: encryptorId
   };
 }
 
@@ -28,6 +30,7 @@ export function encryptForMultipleRecipients(
   plaintext: string,
   recipients: { userId: string; publicKeyB64: string }[],
   senderSecretKey: Uint8Array,
+  encryptorId?: string
 ): EncryptedPayload[] {
   return recipients.map((r) => {
     const { ciphertext_b64, nonce_b64 } = encryptForRecipient(
@@ -39,6 +42,7 @@ export function encryptForMultipleRecipients(
       recipient_id: r.userId,
       ciphertext_b64,
       nonce_b64,
+      encryptor_id: encryptorId
     };
   });
 }

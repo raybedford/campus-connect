@@ -35,6 +35,7 @@ export interface EncryptedPayload {
   recipient_id: string;
   ciphertext_b64: string;
   nonce_b64: string;
+  encryptor_id?: string; // ID of the user who performed the encryption (defaults to sender_id)
 }
 
 export interface Message {
