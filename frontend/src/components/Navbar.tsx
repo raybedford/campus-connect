@@ -27,7 +27,7 @@ export default function Navbar() {
         <div className="nav-center">
           {isAuthenticated && (
             <div className="school-affiliation">
-              {schoolLogo && (
+              {schoolLogo && schoolLogo.startsWith('http') && (
                 <img 
                   src={schoolLogo} 
                   alt={schoolName} 

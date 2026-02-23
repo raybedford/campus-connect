@@ -79,39 +79,38 @@ CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT 
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- HELPER FOR CONVERSATION ACCESS (Prevents Recursion)
-CREATE OR REPLACE FUNCTION public.get_my_conversations()
-RETURNS TABLE (conv_id UUID) AS $$
-BEGIN
-    RETURN QUERY
+CREATE OR REPLACE FUNCTION public.get_my_conv_ids()
+RETURNS UUID[] AS $$
+  SELECT ARRAY(
     SELECT conversation_id 
     FROM public.conversation_members 
-    WHERE user_id = auth.uid();
-END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+    WHERE user_id = auth.uid()
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
 -- Conversations: Viewable if you are a member
 CREATE POLICY "View conversations if member" ON conversations FOR SELECT
 USING (
-  id IN (SELECT conv_id FROM public.get_my_conversations())
+  id = ANY(public.get_my_conv_ids())
 );
 CREATE POLICY "Create conversation" ON conversations FOR INSERT WITH CHECK (auth.uid() = created_by);
 
 -- Members: Viewable if in same conversation
 CREATE POLICY "View members if in conversation" ON conversation_members FOR SELECT
 USING (
-  conversation_id IN (SELECT conv_id FROM public.get_my_conversations())
+  conversation_id = ANY(public.get_my_conv_ids())
 );
 CREATE POLICY "Join/Add members" ON conversation_members FOR INSERT WITH CHECK (true);
 
 -- Messages: Viewable if in conversation
 CREATE POLICY "View messages if member" ON messages FOR SELECT
 USING (
-  conversation_id IN (SELECT conv_id FROM public.get_my_conversations())
+  conversation_id = ANY(public.get_my_conv_ids())
 );
 CREATE POLICY "Send message if member" ON messages FOR INSERT 
 WITH CHECK (
   auth.uid() = sender_id AND
-  conversation_id IN (SELECT conv_id FROM public.get_my_conversations())
+  conversation_id = ANY(public.get_my_conv_ids())
 );
 
 -- Public Keys: Viewable by everyone (authenticated)
