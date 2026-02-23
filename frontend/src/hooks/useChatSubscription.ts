@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useMessageStore } from '../store/message';
+import { decryptMessage } from '../crypto/encryption';
+import { getPublicKey } from '../api/keys';
 
 // Hook to subscribe to real-time chat updates
 export function useChatSubscription(conversationId: string | null) {
@@ -20,10 +22,47 @@ export function useChatSubscription(conversationId: string | null) {
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          // payload.new is the new message object
-          console.log('New message received!', payload.new);
-          addMessage(conversationId, payload.new);
+        async (payload) => {
+          const newMsg = payload.new as any;
+          console.log('New message received!', newMsg);
+
+          // 1. Fetch sender profile
+          const { data: sender } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', newMsg.sender_id)
+            .single();
+
+          // 2. Fetch sender public key
+          const keyData = await getPublicKey(newMsg.sender_id);
+          
+          let decrypted_text = null;
+          if (keyData && newMsg.content) {
+            try {
+              const payloads = JSON.parse(newMsg.content);
+              const { data: { user } } = await supabase.auth.getUser();
+              const myPayload = payloads.find((p: any) => (p.recipient_id || p.recipientId) === user?.id);
+              
+              if (myPayload) {
+                decrypted_text = await decryptMessage(
+                  {
+                    recipient_id: myPayload.recipient_id || myPayload.recipientId,
+                    ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
+                    nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
+                  },
+                  keyData.publicKeyB64
+                );
+              }
+            } catch (err) {
+              console.error('Decryption failed for realtime message:', err);
+            }
+          }
+
+          addMessage(conversationId, { 
+            ...newMsg, 
+            sender, 
+            decrypted_text 
+          });
         }
       )
       .subscribe();

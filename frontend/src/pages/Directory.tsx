@@ -76,9 +76,9 @@ export default function Directory() {
                     </div>
                   )}
                 </div>
-                <div onClick={() => startDM(userId)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--gold)', fontWeight: 600 }}>MESSAGE</span>
-                  <span style={{ color: 'var(--gold)' }}>&#8594;</span>
+                <div onClick={() => startDM(userId)} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', padding: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: 700 }}>MESSAGE</span>
+                  <span style={{ color: 'var(--gold)', fontSize: '1.2rem' }}>&#8594;</span>
                 </div>
               </li>
             );

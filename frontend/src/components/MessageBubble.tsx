@@ -9,8 +9,16 @@ interface MessageProps {
 
 // Simple Markdown Parser for bold, italics, and code
 function parseMarkdown(text: string) {
+  // 0. Escape HTML to prevent XSS
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
   // 1. Code blocks: ```code```
-  let html = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
   
   // 2. Inline code: `code`
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -32,10 +40,13 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
   const [isTranslating, setIsTranslating] = useState(false);
   const { profile } = useAuthStore();
   
-  const time = new Date(message.createdAt || message.created_at).toLocaleTimeString([], {
+  const dateObj = new Date(message.created_at);
+  const isToday = new Date().toDateString() === dateObj.toDateString();
+  const time = dateObj.toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
+  const dateStr = isToday ? '' : dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ';
 
   const hasText = message.decrypted_text || message.decryptedText;
 
@@ -117,7 +128,7 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
           <span style={{ opacity: 0.5, fontStyle: 'italic' }}>[Encrypted Message]</span>
         )}
       </div>
-      <div className="msg-time">{time}</div>
+      <div className="msg-time">{dateStr}{time}</div>
     </div>
   );
 }

@@ -3,12 +3,13 @@ import { useRef, useState } from 'react';
 interface Props {
   onSend: (text: string) => void;
   onFileSelect?: (file: File) => void;
+  onTyping?: () => void;
   conversationId: string;
 }
 
 const EMOJIS = ['😀', '😂', '😍', '👍', '🔥', '🙌', '🎉', '📚', '🎓', '💻', '🤔', '😎', '💯', '✨', '👋', '👀'];
 
-export default function MessageInput({ onSend, onFileSelect, conversationId: _ }: Props) {
+export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _ }: Props) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
@@ -47,6 +48,11 @@ export default function MessageInput({ onSend, onFileSelect, conversationId: _ }
 
   const addEmoji = (emoji: string) => {
     setText(prev => prev + emoji);
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value);
+    if (onTyping) onTyping();
   };
 
   return (
@@ -115,7 +121,7 @@ export default function MessageInput({ onSend, onFileSelect, conversationId: _ }
         <input
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleTextChange}
           placeholder="Type a message..."
         />
         <button type="submit" className="send-btn" disabled={!text.trim()}>

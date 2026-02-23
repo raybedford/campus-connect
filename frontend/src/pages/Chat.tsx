@@ -15,6 +15,7 @@ import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import TypingIndicator from '../components/TypingIndicator';
 import { useChatSubscription } from '../hooks/useChatSubscription';
+import { usePresence } from '../hooks/usePresence';
 
 export default function Chat() {
   const { id } = useParams<{ id: string }>();
@@ -27,10 +28,11 @@ export default function Chat() {
   const [memberKeys, setMemberKeys] = useState<Record<string, string>>({});
   const [showFiles, setShowFiles] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || []);
+  const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || new Set());
 
   // Use the new Supabase Realtime hook
   useChatSubscription(id || null);
+  const { sendTyping } = usePresence(id || null);
 
   const sharedFiles = messages.filter(m => m.message_type === 'file');
 
@@ -173,13 +175,13 @@ export default function Chat() {
   return (
     <div className="chat-page">
       <div className="chat-header">
-        <button className="back-btn" onClick={() => navigate('/conversations')}>
+        <button className="icon-btn" onClick={() => navigate('/conversations')}>
           &#8592;
         </button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600 }}>{displayName}</div>
+          <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
           {conversation?.type === 'group' && (
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               {conversation.members.length} members
             </div>
           )}
@@ -188,7 +190,7 @@ export default function Chat() {
           className="icon-btn" 
           onClick={() => setShowFiles(!showFiles)} 
           title="Shared Files"
-          style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)' }}
+          style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.5rem' }}
         >
           &#128193;
         </button>
@@ -231,7 +233,12 @@ export default function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <MessageInput onSend={handleSend} onFileSelect={handleFileSelect} conversationId={id!} />
+      <MessageInput 
+        onSend={handleSend} 
+        onFileSelect={handleFileSelect} 
+        onTyping={() => sendTyping(true)}
+        conversationId={id!} 
+      />
     </div>
   );
 }

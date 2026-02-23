@@ -78,7 +78,7 @@ CREATE POLICY "Public schools are viewable by everyone" ON schools FOR SELECT US
 CREATE POLICY "Users can view profiles at their school" ON profiles FOR SELECT
 USING (
   auth.uid() = id OR 
-  school_id = (SELECT school_id FROM profiles WHERE id = auth.uid())
+push   school_id = (SELECT school_id FROM profiles WHERE id = auth.uid())
 );
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
@@ -161,10 +161,27 @@ BEGIN
         TRUE, 
         COALESCE(new.raw_user_meta_data->>'preferred_language', 'en')
     );
-    RETURN new;
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Trigger for profile creation
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- FUNCTION TO UPDATE CONVERSATION TIMESTAMP
+CREATE OR REPLACE FUNCTION update_conversation_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE conversations
+    SET updated_at = NOW()
+    WHERE id = NEW.conversation_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to update conversation updated_at when a new message is sent
+CREATE TRIGGER on_message_inserted
+  AFTER INSERT ON messages
+  FOR EACH ROW EXECUTE FUNCTION update_conversation_timestamp();

@@ -1,7 +1,9 @@
-# Campus Connect — Build Plan [100% COMPLETE]
+# Campus Connect — Build Plan [MIGRATED TO SUPABASE]
 
 ## 1. Project Overview
 **Campus Connect** is a secure, real-time messaging platform designed exclusively for college students. Users sign up with their `.edu` email address, verify their identity, and can instantly message anyone at their school. All messages are end-to-end encrypted (E2EE).
+
+The project was originally built on Node.js/Express and MongoDB, but has been migrated to **Supabase** for improved scalability, simpler real-time handling (Postgres Changes/Broadcast), and built-in Auth/Storage.
 
 ---
 
@@ -9,45 +11,34 @@
 
 | Layer | Technology | Status |
 |-------|-----------|--------|
-| **Backend** | Node.js + Express.js | ✅ |
-| **Real-time** | Socket.io | ✅ |
-| **Database** | MongoDB + Mongoose | ✅ |
-| **Cache / Sessions** | Redis | ✅ |
+| **Backend** | Supabase (PostgreSQL + RLS) | ✅ |
+| **Real-time** | Supabase Realtime (Postgres Changes & Broadcast) | ✅ |
+| **Auth** | Supabase Auth (JWT + MFA) | ✅ |
+| **Storage** | Supabase Storage (E2EE files) | ✅ |
 | **Frontend** | React 18 + TS + Vite | ✅ |
 | **Encryption** | TweetNaCl.js (NaCl Box) | ✅ |
 
 ---
 
-## 3. Five-Week Implementation Status
+## 3. Implementation Status
 
-### Week 1: Foundation + Authentication [COMPLETE]
-- [x] Project scaffolding & Docker Compose.
-- [x] Mongoose models & JWT Auth.
-- [x] .edu signup & Email verification flow.
+### Phase 1: Supabase Migration [COMPLETE]
+- [x] Schema migration to PostgreSQL.
+- [x] RLS policies replacing Node.js API logic.
+- [x] Automatic profile and school creation via Postgres triggers.
 
-### Week 2: Conversations + User Discovery [COMPLETE]
-- [x] DM and Group conversation services.
-- [x] School-scoped user search and Directory.
-- [x] React frontend foundation.
-
-### Week 3: Real-Time Messaging [COMPLETE]
-- [x] Socket.io integration & Room management.
-- [x] Instant message delivery.
-- [x] Typing indicators & Read receipts.
-
-### Week 4: E2EE + File Sharing [COMPLETE]
+### Phase 2: Frontend E2EE & Real-Time [COMPLETE]
+- [x] Integration with Supabase Auth.
 - [x] NaCl Box client-side encryption.
-- [x] Public key publication/retrieval.
-- [x] Ephemeral file sharing with auto-deletion.
+- [x] Real-time message subscription and automated decryption.
+- [x] Presence (Online status) and Typing Indicators via Supabase Broadcast.
 
-### Week 5: Polish, Security + Final Features [COMPLETE]
-- [x] Helmet security headers & Rate limiting.
-- [x] MFA & Password reset workflows.
-- [x] 14-day delayed account deletion.
-- [x] "Gold & Black" high-fidelity UI overhaul.
-- [x] Documentation & Changelog.
+### Phase 3: Polish & Maintenance [ONGOING]
+- [x] Standardized timestamp handling.
+- [x] Cleaned up legacy Node/Mongo/FastAPI code.
+- [x] Updated documentation and environment setup.
 
 ---
 
 ## 4. Final Deliverable
-A fully functional, E2EE-secured messaging ecosystem for Colorado Technical University.
+A serverless, E2EE-secured messaging ecosystem for Colorado Technical University, leveraging Supabase for high availability and low maintenance.
