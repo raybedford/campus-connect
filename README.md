@@ -13,7 +13,9 @@
 ### 💬 Messaging
 - **Direct Messages & Group Chats:** School-scoped discovery and communication.
 - **Real-Time Communication:** Instant delivery using Supabase Realtime (Postgres Changes & Broadcast).
-- **Read Receipts & Typing Indicators:** Live presence and engagement cues.
+- **RCS-Style Typing Indicators:** Live jumping-dot animations with instant clear-on-send.
+- **Read Receipts:** Real-time "Delivered" and "Read" status updates.
+- **Secure History Sharing:** Optionally share decrypted chat history when adding new members to groups.
 - **Translation:** Integrated translation for multilingual campus environments.
 
 ### 🏫 University Integration

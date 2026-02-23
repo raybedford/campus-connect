@@ -40,6 +40,7 @@ CREATE TABLE conversation_members (
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
   role TEXT DEFAULT 'member', -- 'admin', 'member'
   joined_at TIMESTAMPTZ DEFAULT NOW(),
+  last_read_at TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (conversation_id, user_id)
 );
 
