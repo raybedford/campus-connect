@@ -335,36 +335,39 @@ export default function Chat() {
   return (
     <>
       <div className="chat-page">
-        <div className="chat-header">
-          <button className="icon-btn" onClick={() => navigate('/conversations')}>
-            &#8592;
-          </button>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
-            {conversation?.type === 'group' && (
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {conversation.members.length} members
-              </div>
-            )}
+        <div className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+            <button className="icon-btn" onClick={() => navigate('/conversations')}>
+              &#8592;
+            </button>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
+              {conversation?.type === 'group' && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {conversation.members.length} members
+                </div>
+              )}
+            </div>
           </div>
-                          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                            <button 
-                              className="btn-nav-gold" 
-                              onClick={() => setShowAddMember(true)}
-                              title="Add Member"
-                              style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}
-                            >
-                              + STUDENT
-                            </button>
-                            <button 
-                              className="icon-btn" 
-                              onClick={() => setShowFiles(!showFiles)} 
-                              title="Shared Files"
-                              style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.5rem' }}
-                            >
-                              &#128193;
-                            </button>
-                          </div>        </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setShowAddMember(true)}
+              style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', borderRadius: '100px', height: 'auto', minWidth: 'fit-content' }}
+            >
+              + STUDENT
+            </button>
+            <button 
+              className="icon-btn" 
+              onClick={() => setShowFiles(!showFiles)} 
+              title="Shared Files"
+              style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.25rem' }}
+            >
+              &#128193;
+            </button>
+          </div>
+        </div>
 
         {showFiles && (
           <div className="shared-files-panel" style={{ background: 'var(--black-card)', borderBottom: '1px solid var(--black-border)', padding: '1rem', maxHeight: '200px', overflowY: 'auto' }}>
