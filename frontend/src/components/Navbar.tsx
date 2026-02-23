@@ -55,6 +55,7 @@ export default function Navbar() {
             <div className="nav-links">
               {isAuthenticated ? (
                 <>
+                  <button onClick={() => navigate('/conversations/new')} className="btn-nav-gold">+ NEW CHAT</button>
                   <button onClick={() => navigate('/conversations')}>Messages</button>
                   <button onClick={() => navigate('/directory')}>Directory</button>
                   <button onClick={() => navigate('/settings')}>Settings</button>
