@@ -104,10 +104,10 @@ RETURNS UUID[] AS $$
   );
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
--- Conversations: Viewable if you are a member
+-- Conversations: Viewable if you are a member or the creator
 CREATE POLICY "View conversations if member" ON conversations FOR SELECT
 USING (
-  id = ANY(public.get_my_conv_ids())
+  id = ANY(public.get_my_conv_ids()) OR auth.uid() = created_by
 );
 CREATE POLICY "Create conversation" ON conversations FOR INSERT WITH CHECK (auth.uid() = created_by);
 
