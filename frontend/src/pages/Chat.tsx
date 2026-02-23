@@ -44,6 +44,15 @@ export default function Chat() {
   // Use the new Supabase Realtime hook
   useChatSubscription(id || null);
   const { sendTyping } = usePresence(id || null);
+  const typingTimeoutRef = useRef<number | null>(null);
+
+  const handleTyping = () => {
+    sendTyping(true);
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = window.setTimeout(() => {
+      sendTyping(false);
+    }, 2500);
+  };
 
   const sharedFiles = displayMessages.filter(m => m.message_type === 'file');
 
@@ -205,6 +214,11 @@ export default function Chat() {
 
     try {
       const msg = await sendMessage(id, 'text', JSON.stringify(payloads));
+      
+      // Stop typing indicator immediately on send
+      sendTyping(false);
+      if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+
       // Optimistic UI update
       const optimisticMsg = { ...msg, decrypted_text: text };
       addMessage(id, optimisticMsg);
@@ -233,6 +247,11 @@ export default function Chat() {
     try {
       const { path } = await uploadFile(new Blob([encryptedBlob as any]), 'temp', id, file.name, recipients.length);
       const msg = await sendMessage(id, 'file', JSON.stringify(keyPayloads), path);
+      
+      // Stop typing
+      sendTyping(false);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
       const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
       addMessage(id, optimisticMsg);
       setDisplayMessages(prev => [...prev, optimisticMsg]);
@@ -390,7 +409,7 @@ export default function Chat() {
         <MessageInput 
           onSend={handleSend} 
           onFileSelect={handleFileSelect} 
-          onTyping={() => sendTyping(true)}
+          onTyping={handleTyping}
           conversationId={id!} 
         />
       </div>

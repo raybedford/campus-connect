@@ -33,10 +33,6 @@ export function usePresence(conversationId: string | null) {
         const { user_id, is_typing } = payload;
         if (is_typing) {
           setTyping(conversationId, user_id);
-          // Auto-clear typing after 3 seconds
-          setTimeout(() => {
-            clearTyping(conversationId, user_id);
-          }, 3000);
         } else {
           clearTyping(conversationId, user_id);
         }
