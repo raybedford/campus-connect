@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getConversation, addMemberToConversation, getSchoolDirectory } from '../api/conversations';
+import { getConversation, addMemberToConversation, getSchoolDirectory, markAsRead } from '../api/conversations';
 import { getMessages, sendMessage } from '../api/messages';
 import { getBatchPublicKeys, getPublicKey } from '../api/keys';
 import { useAuthStore } from '../store/auth';
@@ -55,6 +55,10 @@ export default function Chat() {
 
   useEffect(() => {
     if (!id || !user) return;
+    
+    // Initial mark as read
+    markAsRead(id);
+
     const load = async () => {
       try {
         const [conv, msgs] = await Promise.all([
@@ -90,6 +94,9 @@ export default function Chat() {
       
       const newMsgs = storeMessages.filter(sm => !displayMessages.some(dm => dm.id === sm.id));
       if (newMsgs.length > 0) {
+        // Mark as read when new messages arrive and we are in the chat
+        if (id) markAsRead(id);
+
         processingRef.current = true;
         try {
           const decryptedNew = await decryptMessagesList(newMsgs, memberKeys);
@@ -104,7 +111,8 @@ export default function Chat() {
       }
     };
     sync();
-  }, [storeMessages, memberKeys, displayMessages.length]);
+  }, [storeMessages, memberKeys, displayMessages.length, id]);
+
 
   async function decryptMessagesList(msgs: any[], keys: Record<string, string>): Promise<any[]> {
     const results: any[] = [];
@@ -158,6 +166,16 @@ export default function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [displayMessages]);
+
+  // Refresh conversation metadata (read receipts) periodically
+  useEffect(() => {
+    if (!id) return;
+    const interval = setInterval(async () => {
+      const conv = await getConversation(id);
+      setConversation((updated: any) => ({ ...updated, members: conv.members }));
+    }, 10000); // every 10 seconds
+    return () => clearInterval(interval);
+  }, [id]);
 
   const handleSend = async (text: string) => {
     if (!id || !user || !conversation) return;
@@ -358,6 +376,7 @@ export default function Chat() {
               message={msg}
               isMine={(msg.sender_id || msg.sender?.id || msg.sender) === user?.id}
               senderName={msg.sender?.display_name || 'User'}
+              members={conversation?.members || EMPTY_ARRAY}
             />
           ))}
           <TypingIndicator

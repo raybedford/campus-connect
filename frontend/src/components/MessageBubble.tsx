@@ -5,6 +5,7 @@ interface MessageProps {
   message: any;
   isMine: boolean;
   senderName?: string;
+  members?: any[];
 }
 
 // Simple Markdown Parser for bold, italics, and code
@@ -35,10 +36,10 @@ function parseMarkdown(text: string) {
   return html.replace(/\n/g, '<br />');
 }
 
-export default function MessageBubble({ message, isMine, senderName }: MessageProps) {
+export default function MessageBubble({ message, isMine, senderName, members = [] }: MessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   
   const dateObj = new Date(message.created_at);
   const isToday = new Date().toDateString() === dateObj.toDateString();
@@ -49,6 +50,25 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
   const dateStr = isToday ? '' : dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ';
 
   const hasText = message.decrypted_text || message.decryptedText;
+
+  // Read status logic
+  const getReadStatus = () => {
+    if (!isMine || !members.length) return null;
+    
+    const others = members.filter(m => (m.user_id || m.user?.id) !== user?.id);
+    if (!others.length) return null;
+
+    const readBy = others.filter(m => {
+      const lastRead = new Date(m.last_read_at || 0);
+      return lastRead >= dateObj;
+    });
+
+    if (readBy.length === 0) return 'Delivered';
+    if (readBy.length === others.length) return 'Read';
+    return `Read by ${readBy.length}`;
+  };
+
+  const status = getReadStatus();
 
   // Check if text is a GIF format: [gif:https://...]
   const isGif = hasText?.startsWith('[gif:') && hasText?.endsWith(']');
@@ -128,7 +148,10 @@ export default function MessageBubble({ message, isMine, senderName }: MessagePr
           <span style={{ opacity: 0.5, fontStyle: 'italic' }}>[Encrypted Message]</span>
         )}
       </div>
-      <div className="msg-time">{dateStr}{time}</div>
+      <div className="msg-time" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
+        {status && <span style={{ opacity: 0.8, fontWeight: 600 }}>{status} • </span>}
+        {dateStr}{time}
+      </div>
     </div>
   );
 }

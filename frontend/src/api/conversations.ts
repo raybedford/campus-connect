@@ -108,6 +108,17 @@ export async function createConversation(
   return conversation;
 }
 
+export async function markAsRead(conversationId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from('conversation_members')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', user.id);
+}
+
 export async function searchUsers(query: string): Promise<any[]> {
   const { data, error } = await supabase
     .from('profiles')
