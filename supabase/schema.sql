@@ -63,7 +63,7 @@ CREATE TABLE public_keys (
 
 -- RLS (Row Level Security) - This replaces your Backend API logic!
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles DISABLE ROW LEVEL SECURITY; -- Disabled for global visibility
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
