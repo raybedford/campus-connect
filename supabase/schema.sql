@@ -141,27 +141,30 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     email_domain TEXT;
+    base_domain TEXT;
     target_school_id UUID;
     school_name TEXT;
 BEGIN
-    -- Extract domain from email and lowercase it (e.g., Student@ColoradoTech.edu -> coloradotech.edu)
+    -- Extract and lowercase domain
     email_domain := lower(split_part(new.email, '@', 2));
 
-    -- Check if it's a valid .edu domain (basic check)
+    -- Normalize .edu domains (e.g., student.ctuonline.edu -> ctuonline.edu)
     IF email_domain LIKE '%.edu' THEN
-        -- Find school
-        SELECT id INTO target_school_id FROM public.schools WHERE domain = email_domain;
+        base_domain := regexp_replace(email_domain, '^(student\.|mail\.|my\.|email\.|webmail\.|live\.)', '');
+        
+        -- Find or create school using the base domain
+        SELECT id INTO target_school_id FROM public.schools WHERE domain = base_domain;
         
         IF target_school_id IS NULL THEN
-            -- Format a default name from the domain (coloradotech.edu -> Coloradotech)
-            school_name := initcap(split_part(email_domain, '.', 1));
+            school_name := initcap(split_part(base_domain, '.', 1));
             
-            -- Use ON CONFLICT to handle race conditions if two users from a new school sign up at once
             INSERT INTO public.schools (domain, name, logo_url)
-            VALUES (email_domain, school_name, 'https://logo.clearbit.com/' || email_domain)
+            VALUES (base_domain, school_name, 'https://logo.clearbit.com/' || base_domain)
             ON CONFLICT (domain) DO UPDATE SET domain = EXCLUDED.domain
             RETURNING id INTO target_school_id;
         END IF;
+    ELSE
+        base_domain := email_domain;
     END IF;
 
     INSERT INTO public.profiles (id, email, display_name, school_id, is_verified, preferred_language)
