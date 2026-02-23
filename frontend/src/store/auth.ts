@@ -29,10 +29,24 @@ export const useAuthStore = create<AuthState>((set) => ({
         
         // Initialize E2EE Keys if missing
         try {
-          const hasKeys = await hasKeyPair();
-          if (!hasKeys) {
-            const { publicKey } = await generateAndStoreKeyPair();
-            await publishKey(publicKey);
+          const localKeys = await hasKeyPair();
+          if (!localKeys) {
+            // Check if user already has a key published on the server
+            const { data: remoteKey } = await supabase
+              .from('public_keys')
+              .select('public_key')
+              .eq('user_id', session.user.id)
+              .single();
+
+            if (!remoteKey) {
+              // Truly new user, generate first keypair
+              const { publicKey } = await generateAndStoreKeyPair();
+              await publishKey(publicKey);
+            } else {
+              // Key exists on server but not this device. 
+              // Do NOT generate a new one, as it will break other devices.
+              console.warn('E2EE Key found on server but missing locally. User needs to import backup.');
+            }
           }
         } catch (err) {
           console.error('E2EE Key initialization failed during boot:', err);
@@ -60,10 +74,18 @@ export const useAuthStore = create<AuthState>((set) => ({
       if ((event === 'SIGNED_IN' || session?.user) && currentUserId) {
         // Initialize E2EE Keys if missing
         try {
-          const hasKeys = await hasKeyPair();
-          if (!hasKeys) {
-            const { publicKey } = await generateAndStoreKeyPair();
-            await publishKey(publicKey).catch(console.error);
+          const localKeys = await hasKeyPair();
+          if (!localKeys) {
+            const { data: remoteKey } = await supabase
+              .from('public_keys')
+              .select('public_key')
+              .eq('user_id', currentUserId)
+              .single();
+
+            if (!remoteKey) {
+              const { publicKey } = await generateAndStoreKeyPair();
+              await publishKey(publicKey).catch(console.error);
+            }
           }
         } catch (e) {
           console.error('Key generation error on auth change:', e);

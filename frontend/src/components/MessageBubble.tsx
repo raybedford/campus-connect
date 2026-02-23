@@ -145,7 +145,10 @@ export default function MessageBubble({ message, isMine, senderName, members = [
             )}
           </>
         ) : (
-          <span style={{ opacity: 0.5, fontStyle: 'italic' }}>[Encrypted Message]</span>
+          <div style={{ opacity: 0.6, fontStyle: 'italic', fontSize: '0.85rem' }}>
+            <span style={{ display: 'block', marginBottom: '4px' }}>🔒 Encrypted Message</span>
+            <span style={{ fontSize: '0.7rem', display: 'block' }}>Import your Security Key in Settings to read this.</span>
+          </div>
         )}
       </div>
       <div className="msg-time" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>

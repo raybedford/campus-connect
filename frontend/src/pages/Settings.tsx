@@ -5,6 +5,8 @@ import { updateMe } from '../api/auth';
 import { supabase } from '../lib/supabase';
 import CampusBuilding from '../components/CampusBuilding';
 
+import { getStoredKeyPair } from '../crypto/keyManager';
+
 const LANGUAGES = [
   { code: 'en', name: 'English' },
   { code: 'es', name: 'Spanish' },
@@ -30,6 +32,11 @@ export default function Settings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [notifStatus, setNotifStatus] = useState<string>('');
 
+  // E2EE Backup states
+  const [showKey, setShowKey] = useState(false);
+  const [mySecretKey, setMySecretKey] = useState('');
+  const [importKey, setImportKey] = useState('');
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name);
@@ -39,7 +46,36 @@ export default function Settings() {
     if (window.Notification) {
       setNotifStatus(Notification.permission);
     }
+
+    // Load secret key for backup
+    getStoredKeyPair().then(keys => {
+      if (keys) setMySecretKey(keys.secretKey);
+    });
   }, [profile]);
+
+  const handleImportKey = async () => {
+    if (!importKey.trim()) return;
+    try {
+      const { set } = await import('idb-keyval');
+      const { fromBase64, toBase64 } = await import('../utils/base64');
+      const nacl = (await import('tweetnacl')).default;
+
+      // Validate key format
+      const skBytes = fromBase64(importKey);
+      if (skBytes.length !== 32) throw new Error('Invalid key length');
+
+      // Derive public key from secret key
+      const keyPair = nacl.box.keyPair.fromSecretKey(skBytes);
+      
+      await set('campus_connect_private_key', importKey);
+      await set('campus_connect_public_key', toBase64(keyPair.publicKey));
+      
+      setMessage('Security key imported successfully! Refreshing...');
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (err) {
+      alert('Invalid security key. Please check the code and try again.');
+    }
+  };
 
   const enableNotifications = async () => {
     if (!window.Notification) {
@@ -145,6 +181,48 @@ export default function Settings() {
           <button className="btn btn-primary" onClick={() => handleUpdate()} disabled={loading} style={{ width: '100%' }}>
             Save Basic Info
           </button>
+        </section>
+
+        <section style={{ marginBottom: '2rem' }}>
+          <h3 style={{ color: 'var(--gold)', fontFamily: 'var(--serif)', marginBottom: '1rem' }}>E2EE Security Backup</h3>
+          <div style={{ background: 'var(--black)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--black-border)' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--cream-dim)', marginBottom: '1rem' }}>
+              Your messages are encrypted. To read them on another device (like your phone), you must import your <strong>Recovery Code</strong>.
+            </p>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label">Your Recovery Code</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input 
+                  type={showKey ? "text" : "password"} 
+                  value={mySecretKey} 
+                  readOnly 
+                  style={{ fontSize: '0.75rem', fontFamily: 'var(--mono)', background: 'rgba(0,0,0,0.2)' }}
+                />
+                <button className="btn btn-outline" onClick={() => setShowKey(!showKey)} style={{ padding: '0.5rem 1rem', fontSize: '0.7rem' }}>
+                  {showKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--black-border)', margin: '1.5rem 0' }} />
+
+            <div>
+              <label className="form-label">Import Code from another device</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input 
+                  type="password" 
+                  placeholder="Paste recovery code here..." 
+                  value={importKey}
+                  onChange={(e) => setImportKey(e.target.value)}
+                  style={{ fontSize: '0.75rem' }}
+                />
+                <button className="btn btn-primary" onClick={handleImportKey} style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                  Import
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section style={{ marginBottom: '2rem' }}>
