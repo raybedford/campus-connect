@@ -35,6 +35,7 @@ export default function Settings() {
   // E2EE Backup states
   const [showKey, setShowKey] = useState(false);
   const [mySecretKey, setMySecretKey] = useState('');
+  const [myPublicKey, setMyPublicKey] = useState('');
   const [importKey, setImportKey] = useState('');
 
   useEffect(() => {
@@ -47,11 +48,28 @@ export default function Settings() {
       setNotifStatus(Notification.permission);
     }
 
-    // Load secret key for backup
+    // Load keys for backup/verification
     getStoredKeyPair().then(keys => {
-      if (keys) setMySecretKey(keys.secretKey);
+      if (keys) {
+        setMySecretKey(keys.secretKey);
+        setMyPublicKey(keys.publicKey);
+      }
     });
   }, [profile]);
+
+  const handleSyncKey = async () => {
+    if (!myPublicKey) return;
+    setLoading(true);
+    try {
+      const { publishKey } = await import('../api/keys');
+      await publishKey(myPublicKey);
+      setMessage('Security key synced to server successfully!');
+    } catch (err) {
+      alert('Failed to sync key to server.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleImportKey = async () => {
     if (!importKey.trim()) return;
@@ -203,6 +221,17 @@ export default function Settings() {
                   {showKey ? 'Hide' : 'Show'}
                 </button>
               </div>
+              <p style={{ fontSize: '0.6rem', color: 'var(--cream-dim)', marginTop: '0.5rem' }}>
+                Public Key ID: <span style={{ fontFamily: 'var(--mono)' }}>{myPublicKey.substring(0, 12)}...</span>
+              </p>
+              <button 
+                className="btn-nav-gold" 
+                onClick={handleSyncKey} 
+                style={{ marginTop: '0.75rem', fontSize: '0.65rem', padding: '0.3rem 0.8rem' }}
+                disabled={loading}
+              >
+                ↻ Sync Key to Server
+              </button>
             </div>
 
             <hr style={{ border: 'none', borderTop: '1px solid var(--black-border)', margin: '1.5rem 0' }} />
