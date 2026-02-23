@@ -161,7 +161,7 @@ export default function NewConversation() {
       {mode === 'group' && selectedUsers.length > 0 && (
         <button 
           className="btn btn-primary" 
-          onClick={handleCreate}
+          onClick={() => handleCreate()}
           style={{ width: '100%', marginTop: '2rem' }}
         >
           Create Group ({selectedUsers.length})
