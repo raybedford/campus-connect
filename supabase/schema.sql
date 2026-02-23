@@ -81,9 +81,8 @@ CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.
 -- Conversations: Viewable if you are a member
 CREATE POLICY "View conversations if member" ON conversations FOR SELECT
 USING (
-  EXISTS (
-    SELECT 1 FROM conversation_members 
-    WHERE conversation_id = id AND user_id = auth.uid()
+  id IN (
+    SELECT conversation_id FROM conversation_members WHERE user_id = auth.uid()
   )
 );
 CREATE POLICY "Create conversation" ON conversations FOR INSERT WITH CHECK (auth.uid() = created_by);
@@ -91,27 +90,24 @@ CREATE POLICY "Create conversation" ON conversations FOR INSERT WITH CHECK (auth
 -- Members: Viewable if in same conversation
 CREATE POLICY "View members if in conversation" ON conversation_members FOR SELECT
 USING (
-  EXISTS (
-    SELECT 1 FROM conversation_members cm
-    WHERE cm.conversation_id = conversation_id AND cm.user_id = auth.uid()
+  conversation_id IN (
+    SELECT conversation_id FROM conversation_members WHERE user_id = auth.uid()
   )
 );
-CREATE POLICY "Join/Add members" ON conversation_members FOR INSERT WITH CHECK (true); -- Simplified for now
+CREATE POLICY "Join/Add members" ON conversation_members FOR INSERT WITH CHECK (true);
 
 -- Messages: Viewable if in conversation
 CREATE POLICY "View messages if member" ON messages FOR SELECT
 USING (
-  EXISTS (
-    SELECT 1 FROM conversation_members 
-    WHERE conversation_id = conversation_id AND user_id = auth.uid()
+  conversation_id IN (
+    SELECT conversation_id FROM conversation_members WHERE user_id = auth.uid()
   )
 );
 CREATE POLICY "Send message if member" ON messages FOR INSERT 
 WITH CHECK (
   auth.uid() = sender_id AND
-  EXISTS (
-    SELECT 1 FROM conversation_members 
-    WHERE conversation_id = conversation_id AND user_id = auth.uid()
+  conversation_id IN (
+    SELECT conversation_id FROM conversation_members WHERE user_id = auth.uid()
   )
 );
 
