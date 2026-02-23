@@ -334,8 +334,18 @@ export default function Chat() {
 
   return (
     <>
-      <div className="chat-page">
-        <div className="chat-header" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem', zIndex: 10 }}>
+      <div className="chat-page" style={{ position: 'relative' }}>
+        <div className="chat-header" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '0.75rem', 
+          padding: '1rem', 
+          zIndex: 100, 
+          position: 'sticky', 
+          top: 0, 
+          background: 'var(--black)',
+          borderBottom: '1px solid var(--black-border)'
+        }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <button className="icon-btn" onClick={() => navigate('/conversations')}>
