@@ -150,8 +150,13 @@ BEGIN
 
     -- Normalize .edu domains (e.g., student.ctuonline.edu -> ctuonline.edu)
     IF email_domain LIKE '%.edu' THEN
-        base_domain := regexp_replace(email_domain, '^(student\.|mail\.|my\.|email\.|webmail\.|live\.)', '');
+        base_domain := regexp_replace(email_domain, '^(student\.|mail\.|my\.|email\.|webmail\ live\.)', '');
         
+        -- Special Mapping for CTU (Merge ctuonline.edu into coloradotech.edu)
+        IF base_domain = 'ctuonline.edu' THEN
+            base_domain := 'coloradotech.edu';
+        END IF;
+
         -- Find or create school using the base domain
         SELECT id INTO target_school_id FROM public.schools WHERE domain = base_domain;
         
