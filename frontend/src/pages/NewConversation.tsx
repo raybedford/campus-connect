@@ -39,20 +39,21 @@ export default function NewConversation() {
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (singleUserId?: string) => {
     setError('');
+    const finalMemberIds = singleUserId ? [singleUserId] : selectedUsers.map(u => u._id || u.id);
+
     if (mode === 'group' && !groupName.trim()) {
       setError('Please enter a group name');
       return;
     }
-    if (selectedUsers.length === 0) {
+    if (finalMemberIds.length === 0) {
       setError('Please select at least one person');
       return;
     }
 
     try {
-      const memberIds = selectedUsers.map(u => u._id || u.id);
-      const conv = await createConversation(mode, memberIds, groupName);
+      const conv = await createConversation(mode, finalMemberIds, groupName);
       navigate(`/conversations/${conv._id || conv.id}`);
     } catch (err: any) {
       setError(err.message || 'Could not create conversation');
@@ -110,7 +111,7 @@ export default function NewConversation() {
         <div className="selected-users" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
           {selectedUsers.map(u => (
             <div key={u._id || u.id} className="user-tag" style={{ background: 'var(--gold)', color: 'var(--black)', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              {u.displayName}
+              {u.display_name}
               <span style={{ cursor: 'pointer' }} onClick={() => toggleUserSelection(u)}>&times;</span>
             </div>
           ))}
@@ -131,11 +132,11 @@ export default function NewConversation() {
                 <li
                   key={userId}
                   className="search-result-item"
-                  onClick={() => mode === 'dm' ? handleCreate() : toggleUserSelection(user)}
-                  style={{ background: isSelected ? 'rgba(207,184,124,0.1)' : 'transparent' }}
+                  onClick={() => mode === 'dm' ? handleCreate(userId) : toggleUserSelection(user)}
+                  style={{ background: isSelected ? 'rgba(207,184,124,0.1)' : 'transparent', padding: '1.25rem 1rem' }}
                 >
                   <div>
-                    <div className="name">{user.displayName}</div>
+                    <div className="name">{user.display_name}</div>
                     <div className="email" style={{ fontSize: '0.7rem' }}>{user.email}</div>
                   </div>
                   {mode === 'group' ? (
