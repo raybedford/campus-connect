@@ -9,9 +9,15 @@ import CampusBuilding from '../components/CampusBuilding';
 
 function getConversationDisplayName(conv: any, currentUserId: string): string {
   if (conv.type === 'group') return conv.name || 'Group Chat';
-  // Backend returns members with .user as an object { _id, displayName, email }
-  const other = conv.members.find((m: any) => (m.user._id || m.user) !== currentUserId);
-  return other?.user?.displayName || other?.display_name || 'Unknown';
+  
+  if (!conv.members || !Array.isArray(conv.members)) return 'Chat';
+
+  const other = conv.members.find((m: any) => {
+    const userId = m.user?.id || m.user_id || m.user;
+    return userId !== currentUserId;
+  });
+  
+  return other?.user?.display_name || other?.display_name || 'Student';
 }
 
 function getInitials(name: string): string {

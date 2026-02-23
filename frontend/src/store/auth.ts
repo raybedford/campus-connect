@@ -24,10 +24,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: session.user, isAuthenticated: true });
       
       // Initialize E2EE Keys if missing
-      const hasKeys = await hasKeyPair();
-      if (!hasKeys) {
-        const { publicKey } = await generateAndStoreKeyPair();
-        await publishKey(publicKey);
+      try {
+        const hasKeys = await hasKeyPair();
+        if (!hasKeys) {
+          const { publicKey } = await generateAndStoreKeyPair();
+          await publishKey(publicKey);
+        }
+      } catch (err) {
+        console.error('E2EE Key initialization failed during boot:', err);
       }
 
       // Fetch profile with school details

@@ -47,7 +47,7 @@ export default function Chat() {
         setConversation(conv);
 
         // Fetch public keys for all members
-        const memberIds = conv.members.map((m: any) => m.user?.id || m.user_id || m.user);
+        const memberIds = (conv?.members || []).map((m: any) => m.user?.id || m.user_id || m.user);
         const keys = await getBatchPublicKeys(memberIds);
         const keyMap: Record<string, string> = {};
         keys.forEach((k: any) => {
@@ -111,7 +111,7 @@ export default function Chat() {
     const secretKey = await getPrivateKey();
     let payloads;
 
-    if (secretKey && Object.keys(memberKeys).length > 0) {
+    if (secretKey && Object.keys(memberKeys).length > 0 && conversation?.members) {
       const recipients = conversation.members
         .map((m: any) => {
           const uid = m.user?.id || m.user_id || m.user;
@@ -121,7 +121,7 @@ export default function Chat() {
       
       payloads = encryptForMultipleRecipients(text, recipients, secretKey);
     } else {
-      payloads = conversation.members.map((m: any) => {
+      payloads = (conversation?.members || []).map((m: any) => {
         const uid = m.user?.id || m.user_id || m.user;
         return {
           recipient_id: uid,

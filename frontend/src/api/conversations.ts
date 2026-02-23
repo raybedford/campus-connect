@@ -6,6 +6,7 @@ export async function getConversations(): Promise<any[]> {
     .select(`
       *,
       members:conversation_members (
+        user_id,
         user:profiles (
           id,
           display_name,
@@ -26,6 +27,7 @@ export async function getConversation(id: string): Promise<any> {
     .select(`
       *,
       members:conversation_members (
+        user_id,
         user:profiles (
           id,
           display_name,
