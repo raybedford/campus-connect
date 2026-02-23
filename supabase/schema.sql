@@ -63,7 +63,7 @@ CREATE TABLE public_keys (
 
 -- RLS (Row Level Security) - This replaces your Backend API logic!
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles DISABLE ROW LEVEL SECURITY; -- Disabled for global visibility
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -74,18 +74,8 @@ ALTER TABLE public_keys ENABLE ROW LEVEL SECURITY;
 -- Schools: Everyone can read schools
 CREATE POLICY "Public schools are viewable by everyone" ON schools FOR SELECT USING (true);
 
--- Profiles: Viewable by authenticated users at the SAME SCHOOL (or self)
--- We use a SECURITY DEFINER function to avoid RLS recursion issues
-CREATE OR REPLACE FUNCTION public.get_my_school_id()
-RETURNS UUID AS $$
-  SELECT school_id FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
-
-CREATE POLICY "Users can view profiles at their school" ON profiles FOR SELECT
-USING (
-  auth.uid() = id OR 
-  school_id = public.get_my_school_id()
-);
+-- Profiles: Viewable by all authenticated users
+CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Conversations: Viewable if you are a member and at the same school
