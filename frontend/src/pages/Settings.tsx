@@ -204,35 +204,46 @@ export default function Settings() {
         <section style={{ marginBottom: '2rem' }}>
           <h3 style={{ color: 'var(--gold)', fontFamily: 'var(--serif)', marginBottom: '1rem' }}>E2EE Security Backup</h3>
           <div style={{ background: 'var(--black)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--black-border)' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--cream-dim)', marginBottom: '1rem' }}>
-              Your messages are encrypted. To read them on another device (like your phone), you must import your <strong>Recovery Code</strong>.
-            </p>
             
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label">Your Recovery Code</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input 
-                  type={showKey ? "text" : "password"} 
-                  value={mySecretKey} 
-                  readOnly 
-                  style={{ fontSize: '0.75rem', fontFamily: 'var(--mono)', background: 'rgba(0,0,0,0.2)' }}
-                />
-                <button className="btn btn-outline" onClick={() => setShowKey(!showKey)} style={{ padding: '0.5rem 1rem', fontSize: '0.7rem' }}>
-                  {showKey ? 'Hide' : 'Show'}
+            {mySecretKey ? (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--cream-dim)', marginBottom: '1rem' }}>
+                  This device is secure. To read messages on **another device** (like your phone), copy this code:
+                </p>
+                <label className="form-label">Your Recovery Code</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input 
+                    type={showKey ? "text" : "password"} 
+                    value={mySecretKey} 
+                    readOnly 
+                    style={{ fontSize: '0.75rem', fontFamily: 'var(--mono)', background: 'rgba(0,0,0,0.2)' }}
+                  />
+                  <button className="btn btn-outline" onClick={() => setShowKey(!showKey)} style={{ padding: '0.5rem 1rem', fontSize: '0.7rem' }}>
+                    {showKey ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.6rem', color: 'var(--cream-dim)', marginTop: '0.5rem' }}>
+                  Public Key ID: <span style={{ fontFamily: 'var(--mono)' }}>{myPublicKey.substring(0, 12)}...</span>
+                </p>
+                <button 
+                  className="btn-nav-gold" 
+                  onClick={handleSyncKey} 
+                  style={{ marginTop: '0.75rem', fontSize: '0.65rem', padding: '0.3rem 0.8rem' }}
+                  disabled={loading}
+                >
+                  ↻ Sync Key to Server
                 </button>
               </div>
-              <p style={{ fontSize: '0.6rem', color: 'var(--cream-dim)', marginTop: '0.5rem' }}>
-                Public Key ID: <span style={{ fontFamily: 'var(--mono)' }}>{myPublicKey.substring(0, 12)}...</span>
-              </p>
-              <button 
-                className="btn-nav-gold" 
-                onClick={handleSyncKey} 
-                style={{ marginTop: '0.75rem', fontSize: '0.65rem', padding: '0.3rem 0.8rem' }}
-                disabled={loading}
-              >
-                ↻ Sync Key to Server
-              </button>
-            </div>
+            ) : (
+              <div style={{ marginBottom: '1.5rem', border: '1px dashed var(--gold-dim)', padding: '1rem', borderRadius: '8px' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 600, marginBottom: '0.5rem' }}>
+                  ⚠️ Security Key Missing
+                </p>
+                <p style={{ fontSize: '0.8rem', color: 'var(--cream-dim)' }}>
+                  To unlock your messages on this computer, please go to **Settings on your Phone**, copy your **Recovery Code**, and paste it below.
+                </p>
+              </div>
+            )}
 
             <hr style={{ border: 'none', borderTop: '1px solid var(--black-border)', margin: '1.5rem 0' }} />
 

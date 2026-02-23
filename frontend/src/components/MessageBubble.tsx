@@ -145,19 +145,8 @@ export default function MessageBubble({ message, isMine, senderName, members = [
             )}
           </>
         ) : (
-          <div style={{ 
-            background: 'rgba(207,184,124,0.1)', 
-            border: '1px solid rgba(207,184,124,0.3)',
-            padding: '0.75rem',
-            borderRadius: '12px',
-            marginTop: '0.25rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--gold)', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.4rem' }}>
-              <span>🔒</span> ENCRYPTED MESSAGE
-            </div>
-            <p style={{ fontSize: '0.75rem', lineHeight: '1.4', color: 'var(--cream-dim)' }}>
-              To read this on this device, you must import your <strong>Recovery Code</strong> in Settings.
-            </p>
+          <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.85rem', padding: '0.25rem 0' }}>
+            🔒 Encrypted Message (Import key in Settings to read)
           </div>
         )}
       </div>
