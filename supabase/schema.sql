@@ -75,16 +75,23 @@ ALTER TABLE public_keys ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public schools are viewable by everyone" ON schools FOR SELECT USING (true);
 
 -- Profiles: Viewable by authenticated users at the SAME SCHOOL (or self)
+-- We use a SECURITY DEFINER function to avoid RLS recursion issues
+CREATE OR REPLACE FUNCTION public.get_my_school_id()
+RETURNS UUID AS $$
+  SELECT school_id FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
 CREATE POLICY "Users can view profiles at their school" ON profiles FOR SELECT
 USING (
   auth.uid() = id OR 
-push   school_id = (SELECT school_id FROM profiles WHERE id = auth.uid())
+  school_id = public.get_my_school_id()
 );
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
--- Conversations: Viewable if you are a member
+-- Conversations: Viewable if you are a member and at the same school
 CREATE POLICY "View conversations if member" ON conversations FOR SELECT
 USING (
+  school_id = public.get_my_school_id() AND
   EXISTS (
     SELECT 1 FROM conversation_members 
     WHERE conversation_id = id AND user_id = auth.uid()
@@ -106,8 +113,11 @@ CREATE POLICY "Join/Add members" ON conversation_members FOR INSERT WITH CHECK (
 CREATE POLICY "View messages if member" ON messages FOR SELECT
 USING (
   EXISTS (
-    SELECT 1 FROM conversation_members 
-    WHERE conversation_id = conversation_id AND user_id = auth.uid()
+    SELECT 1 FROM conversations c
+    JOIN conversation_members cm ON c.id = cm.conversation_id
+    WHERE c.id = messages.conversation_id 
+    AND cm.user_id = auth.uid()
+    AND c.school_id = public.get_my_school_id()
   )
 );
 CREATE POLICY "Send message if member" ON messages FOR INSERT 
@@ -134,20 +144,22 @@ DECLARE
     target_school_id UUID;
     school_name TEXT;
 BEGIN
-    -- Extract domain from email (e.g., student@coloradotech.edu -> coloradotech.edu)
-    email_domain := split_part(new.email, '@', 2);
+    -- Extract domain from email and lowercase it (e.g., Student@ColoradoTech.edu -> coloradotech.edu)
+    email_domain := lower(split_part(new.email, '@', 2));
 
     -- Check if it's a valid .edu domain (basic check)
     IF email_domain LIKE '%.edu' THEN
-        -- Find or create school
+        -- Find school
         SELECT id INTO target_school_id FROM public.schools WHERE domain = email_domain;
         
         IF target_school_id IS NULL THEN
             -- Format a default name from the domain (coloradotech.edu -> Coloradotech)
             school_name := initcap(split_part(email_domain, '.', 1));
             
+            -- Use ON CONFLICT to handle race conditions if two users from a new school sign up at once
             INSERT INTO public.schools (domain, name, logo_url)
             VALUES (email_domain, school_name, 'https://logo.clearbit.com/' || email_domain)
+            ON CONFLICT (domain) DO UPDATE SET domain = EXCLUDED.domain
             RETURNING id INTO target_school_id;
         END IF;
     END IF;
