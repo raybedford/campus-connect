@@ -110,6 +110,8 @@ USING (
   id = ANY(public.get_my_conv_ids()) OR auth.uid() = created_by
 );
 CREATE POLICY "Create conversation" ON conversations FOR INSERT WITH CHECK (auth.uid() = created_by);
+CREATE POLICY "Update conversation if member" ON conversations FOR UPDATE
+USING (id = ANY(public.get_my_conv_ids()));
 
 -- Members: Viewable if in same conversation
 CREATE POLICY "View members if in conversation" ON conversation_members FOR SELECT
@@ -117,17 +119,21 @@ USING (
   conversation_id = ANY(public.get_my_conv_ids())
 );
 CREATE POLICY "Join/Add members" ON conversation_members FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update own membership" ON conversation_members FOR UPDATE
+USING (auth.uid() = user_id);
 
 -- Messages: Viewable if in conversation
 CREATE POLICY "View messages if member" ON messages FOR SELECT
 USING (
   conversation_id = ANY(public.get_my_conv_ids())
 );
-CREATE POLICY "Send message if member" ON messages FOR INSERT 
+CREATE POLICY "Send message if member" ON messages FOR INSERT
 WITH CHECK (
   auth.uid() = sender_id AND
   conversation_id = ANY(public.get_my_conv_ids())
 );
+CREATE POLICY "Update messages if member" ON messages FOR UPDATE
+USING (conversation_id = ANY(public.get_my_conv_ids()));
 
 -- Public Keys: Viewable by everyone (authenticated)
 CREATE POLICY "View public keys" ON public_keys FOR SELECT USING (auth.role() = 'authenticated');

@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabase';
+import type { Message } from '../types';
 
 export async function getMessages(
   conversationId: string,
   _before?: string,
   limit = 50
-): Promise<any[]> {
+): Promise<Message[]> {
   const { data, error } = await supabase
     .from('messages')
     .select(`
@@ -21,15 +22,15 @@ export async function getMessages(
     .limit(limit);
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as Message[];
 }
 
 export async function sendMessage(
   conversationId: string,
   messageType: string,
-  content: string, // This will store the encrypted payloads JSON
+  content: string,
   fileUrl?: string
-) {
+): Promise<Message> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -46,5 +47,5 @@ export async function sendMessage(
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Message;
 }

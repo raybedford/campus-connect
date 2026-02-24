@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { forgotPassword } from '../api/auth';
 import CampusBuilding from '../components/CampusBuilding';
 
@@ -8,7 +8,6 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,10 +17,6 @@ export default function ForgotPassword() {
     try {
       await forgotPassword(email);
       setSuccess(true);
-      // Wait a moment then navigate to reset screen
-      setTimeout(() => {
-        navigate('/reset-password', { state: { email } });
-      }, 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to request reset');
     } finally {
@@ -36,11 +31,11 @@ export default function ForgotPassword() {
           <CampusBuilding size={64} />
         </div>
         <h1 className="auth-title">Reset Password</h1>
-        <p className="auth-desc">Enter your email and we'll send you a 6-digit code.</p>
+        <p className="auth-desc">Enter your email and we'll send you a password reset link.</p>
 
         {success ? (
           <div style={{ textAlign: 'center', color: 'var(--gold)', padding: '1rem' }}>
-            <p>If an account exists, a reset code has been sent. Redirecting...</p>
+            <p>If an account exists, a password reset link has been sent to your email. Please check your inbox.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -63,7 +58,7 @@ export default function ForgotPassword() {
               style={{ width: '100%', marginTop: '1rem' }}
               disabled={loading}
             >
-              {loading ? 'Sending...' : 'Send Reset Code'}
+              {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
           </form>
         )}

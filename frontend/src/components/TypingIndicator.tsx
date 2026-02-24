@@ -11,7 +11,10 @@ export default function TypingIndicator({ typingUserIds, members, currentUserId 
 
   const typingNames = Array.from(typingUserIds)
     .filter((id) => id !== currentUserId)
-    .map((id) => members.find((m) => (m.user_id || (m as any).user?.id) === id)?.display_name || 'Someone');
+    .map((id) => {
+      const member = members.find((m) => (m.user_id || (m as any).user?.id) === id);
+      return member?.user?.display_name || member?.display_name || 'Someone';
+    });
 
   if (typingNames.length === 0) return null;
 
@@ -58,7 +61,7 @@ export default function TypingIndicator({ typingUserIds, members, currentUserId 
 
         @keyframes jump {
           0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
-          40% { transform: scale(1); opacity: 1; transform: translateY(-3px); }
+          40% { transform: scale(1) translateY(-3px); opacity: 1; }
         }
       `}</style>
       

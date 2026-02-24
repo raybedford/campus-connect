@@ -1,8 +1,20 @@
+export interface Profile {
+  id: string;
+  display_name: string;
+  email: string;
+  avatar_url: string | null;
+  phone_number: string | null;
+  preferred_language: string;
+}
+
 export interface User {
   id: string;
   email: string;
   display_name: string;
   school_id: string;
+  avatar_url: string | null;
+  phone_number: string | null;
+  preferred_language: string;
   is_verified: boolean;
   created_at: string;
   last_seen: string | null;
@@ -16,9 +28,13 @@ export interface UserSearch {
 
 export interface ConversationMember {
   user_id: string;
-  display_name: string;
-  email: string;
-  joined_at: string;
+  role: string;
+  last_read_at: string;
+  user: Profile;
+  // Flattened fallbacks for legacy access patterns
+  display_name?: string;
+  email?: string;
+  joined_at?: string;
 }
 
 export interface Conversation {
@@ -28,6 +44,7 @@ export interface Conversation {
   school_id: string;
   created_by: string;
   created_at: string;
+  updated_at: string;
   members: ConversationMember[];
 }
 
@@ -42,9 +59,12 @@ export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
-  created_at: string;
+  content: string;
   message_type: 'text' | 'file';
-  encrypted_payloads: EncryptedPayload[];
+  file_url?: string;
+  created_at: string;
+  sender?: Profile;
+  encrypted_payloads?: EncryptedPayload[];
   // Client-side decrypted content (not from server)
   decrypted_text?: string;
 }

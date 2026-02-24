@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { getConversation, addMemberToConversation, getSchoolDirectory, markAsRead } from '../api/conversations';
 import { getMessages, sendMessage } from '../api/messages';
 import { getBatchPublicKeys, getPublicKey } from '../api/keys';
@@ -176,14 +177,39 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [displayMessages]);
 
-  // Refresh conversation metadata (read receipts) periodically
+  // Realtime read receipt updates via Supabase Realtime
   useEffect(() => {
     if (!id) return;
-    const interval = setInterval(async () => {
-      const conv = await getConversation(id);
-      setConversation((updated: any) => ({ ...updated, members: conv.members }));
-    }, 10000); // every 10 seconds
-    return () => clearInterval(interval);
+    const channel = supabase
+      .channel(`read-receipts:${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversation_members',
+          filter: `conversation_id=eq.${id}`,
+        },
+        (payload) => {
+          const updated = payload.new as { user_id: string; last_read_at: string };
+          setConversation((prev: any) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              members: prev.members.map((m: any) =>
+                m.user_id === updated.user_id
+                  ? { ...m, last_read_at: updated.last_read_at }
+                  : m
+              ),
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   const handleSend = async (text: string) => {
@@ -327,60 +353,48 @@ export default function Chat() {
       : conversation.name || 'Group Chat'
     : 'Loading...';
 
-  const filteredDirectory = directory.filter(u => 
+  const filteredDirectory = directory.filter(u =>
     !conversation?.members?.some((m: any) => (m.user?.id || m.user_id || m.user) === u.id) &&
-    (u.display_name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()))
+    ((u.display_name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (u.email || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <>
-      <div className="chat-page" style={{ position: 'relative' }}>
-        <div className="chat-header" style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '0.75rem', 
-          padding: '1rem', 
-          zIndex: 100, 
-          position: 'sticky', 
-          top: 0, 
-          background: 'var(--black)',
-          borderBottom: '1px solid var(--black-border)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <button className="icon-btn" onClick={() => navigate('/conversations')}>
-                &#8592;
-              </button>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{displayName}</div>
-                {conversation?.type === 'group' && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {conversation.members.length} members
-                  </div>
-                )}
+      <div className="chat-page">
+        <div className="chat-header">
+          <button className="icon-btn" onClick={() => navigate('/conversations')}>
+            &#8592;
+          </button>
+          <div className="chat-header-info">
+            <div className="chat-header-name">{displayName}</div>
+            {conversation?.type === 'group' && (
+              <div className="chat-header-subtitle">
+                {conversation.members.length} members
               </div>
-            </div>
-            <button 
-              className="icon-btn" 
-              onClick={() => setShowFiles(!showFiles)} 
+            )}
+          </div>
+          <div className="chat-header-actions">
+            <button
+              className="icon-btn"
+              onClick={() => setShowAddMember(true)}
+              title="Add Student"
+              style={{ fontSize: '1.1rem' }}
+            >
+              +
+            </button>
+            <button
+              className="icon-btn"
+              onClick={() => setShowFiles(!showFiles)}
               title="Shared Files"
-              style={{ color: showFiles ? 'var(--gold)' : 'var(--cream-dim)', fontSize: '1.25rem' }}
+              style={{ color: showFiles ? 'var(--gold)' : undefined }}
             >
               &#128193;
             </button>
           </div>
-
-          <button 
-            className="btn btn-primary" 
-            onClick={() => setShowAddMember(true)}
-            style={{ width: '100%', fontSize: '0.85rem', padding: '0.6rem', borderRadius: '12px' }}
-          >
-            + ADD STUDENT TO THIS CHAT
-          </button>
         </div>
 
         {showFiles && (
-          <div className="shared-files-panel" style={{ background: 'var(--black-card)', borderBottom: '1px solid var(--black-border)', padding: '1rem', maxHeight: '200px', overflowY: 'auto' }}>
+          <div style={{ background: 'var(--black-card)', borderBottom: '1px solid var(--black-border)', padding: '1rem', maxHeight: '200px', overflowY: 'auto', flexShrink: 0 }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--gold)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Shared Files</div>
             {sharedFiles.length === 0 ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--cream-dim)' }}>No files shared in this chat.</p>
@@ -426,7 +440,7 @@ export default function Chat() {
       </div>
 
       {showAddMember && (
-        <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div className="modal-overlay">
           <div className="auth-card" style={{ width: '100%', maxWidth: '400px' }}>
             <h3 style={{ color: 'var(--gold)', marginBottom: '1rem' }}>Add to Chat</h3>
             <input 

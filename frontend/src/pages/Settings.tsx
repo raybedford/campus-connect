@@ -22,7 +22,7 @@ const LANGUAGES = [
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user, profile } = useAuthStore();
+  const { user, profile, setProfile } = useAuthStore();
   
   const [displayName, setDisplayName] = useState(profile?.display_name || user?.user_metadata?.full_name || '');
   const [preferredLang, setPreferredLang] = useState(profile?.preferred_language || 'en');
@@ -141,7 +141,8 @@ export default function Settings() {
         .eq('id', user.id);
         
       if (updateError) throw updateError;
-      
+
+      setProfile({ ...profile, display_name: displayName, preferred_language: preferredLang });
       setMessage('Profile updated successfully');
     } catch (err: any) {
       setMessage(err.message || 'Failed to update profile');

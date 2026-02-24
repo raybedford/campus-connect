@@ -1,22 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getConversations } from '../api/conversations';
-// import { getMe } from '../api/auth';
 import { useAuthStore } from '../store/auth';
 import { useConversationStore } from '../store/conversation';
 import CampusBuilding from '../components/CampusBuilding';
-// import type { Conversation } from '../types';
 
 function getConversationDisplayName(conv: any, currentUserId: string): string {
   if (conv.type === 'group') return conv.name || 'Group Chat';
-  
+
   if (!conv.members || !Array.isArray(conv.members)) return 'Chat';
 
   const other = conv.members.find((m: any) => {
     const userId = m.user?.id || m.user_id || m.user;
     return userId !== currentUserId;
   });
-  
+
   return other?.user?.display_name || other?.display_name || 'Student';
 }
 
@@ -29,6 +27,23 @@ function getInitials(name: string): string {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString([], { weekday: 'short' });
+  } else {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
 }
 
 export default function ConversationList() {
@@ -46,8 +61,6 @@ export default function ConversationList() {
         setLocalConversations(convs);
       } catch (err) {
         console.error('Failed to load conversations:', err);
-        // logout();
-        // navigate('/login');
       } finally {
         setLoading(false);
       }
@@ -58,7 +71,7 @@ export default function ConversationList() {
   if (loading) {
     return (
       <div className="page page-center">
-        <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+        <p style={{ color: 'var(--cream-dim)' }}>Loading...</p>
       </div>
     );
   }
@@ -105,9 +118,14 @@ export default function ConversationList() {
                   <div className="conv-preview">
                     {conv.type === 'group'
                       ? `${conv.members.length} members`
-                      : 'Tap to chat'}
+                      : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>&#128274; Encrypted message</span>}
                   </div>
                 </div>
+                {conv.updated_at && (
+                  <div className="conv-time" style={{ fontSize: '0.7rem', color: 'var(--cream-dim)', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
+                    {formatRelativeTime(conv.updated_at)}
+                  </div>
+                )}
               </li>
             );
           })}

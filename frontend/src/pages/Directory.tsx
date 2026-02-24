@@ -63,15 +63,15 @@ export default function Directory() {
                 <div onClick={() => startDM(userId)} style={{ flex: 1, cursor: 'pointer' }}>
                   <div className="name">{user.display_name}</div>
                   <div className="email" style={{ fontSize: '0.75rem' }}>{user.email}</div>
-                  {user.show_phone_in_profile && user.phone_number && (
+                  {user.phone_number && (
                     <div style={{ marginTop: '0.4rem' }}>
-                      <a 
-                        href={`tel:${user.phoneNumber}`} 
-                        className="auth-link" 
+                      <a
+                        href={`tel:${user.phone_number}`}
+                        className="auth-link"
                         style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <span>&#128222;</span> {user.phoneNumber}
+                        <span>&#128222;</span> {user.phone_number}
                       </a>
                     </div>
                   )}

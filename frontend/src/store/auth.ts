@@ -12,6 +12,7 @@ interface AuthState {
   initialize: () => Promise<void>;
   setAuth: () => void;
   setUser: (user: any) => void;
+  setProfile: (profile: any) => void;
   logout: () => Promise<void>;
 }
 
@@ -108,6 +109,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),
+
+  setProfile: (profile) => set({ profile }),
 
   logout: async () => {
     await supabase.auth.signOut();

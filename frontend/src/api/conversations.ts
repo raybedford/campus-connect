@@ -1,12 +1,15 @@
 import { supabase } from '../lib/supabase';
+import type { Conversation, Profile } from '../types';
 
-export async function getConversations(): Promise<any[]> {
+export async function getConversations(): Promise<Conversation[]> {
   const { data, error } = await supabase
     .from('conversations')
     .select(`
       *,
       members:conversation_members (
         user_id,
+        role,
+        last_read_at,
         user:profiles (
           id,
           display_name,
@@ -18,16 +21,18 @@ export async function getConversations(): Promise<any[]> {
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as Conversation[];
 }
 
-export async function getConversation(id: string): Promise<any> {
+export async function getConversation(id: string): Promise<Conversation> {
   const { data, error } = await supabase
     .from('conversations')
     .select(`
       *,
       members:conversation_members (
         user_id,
+        role,
+        last_read_at,
         user:profiles (
           id,
           display_name,
@@ -40,7 +45,7 @@ export async function getConversation(id: string): Promise<any> {
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Conversation;
 }
 
 export async function createConversation(
@@ -119,7 +124,7 @@ export async function markAsRead(conversationId: string): Promise<void> {
     .eq('user_id', user.id);
 }
 
-export async function searchUsers(query: string): Promise<any[]> {
+export async function searchUsers(query: string): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -127,10 +132,10 @@ export async function searchUsers(query: string): Promise<any[]> {
     .limit(20);
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as Profile[];
 }
 
-export async function getSchoolDirectory(): Promise<any[]> {
+export async function getSchoolDirectory(): Promise<Profile[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -141,7 +146,7 @@ export async function getSchoolDirectory(): Promise<any[]> {
     .order('display_name', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as Profile[];
 }
 
 export async function addMemberToConversation(

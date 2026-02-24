@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 
 interface Props {
   onSend: (text: string) => void;
@@ -16,6 +16,7 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
   const [gifQuery, setGifQuery] = useState('');
   const [gifs, setGifs] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const gifDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -27,16 +28,24 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
     setShowGif(false);
   };
 
-  const handleGifSearch = async (q: string) => {
-    setGifQuery(q);
+  const fetchGifs = useCallback(async (q: string) => {
     if (!q) return;
+    const apiKey = import.meta.env.VITE_TENOR_API_KEY;
+    if (!apiKey) return;
     try {
-      const res = await fetch(`https://tenor.googleapis.com/v2/search?q=${q}&key=LIVD19UA6V23&limit=8`);
+      const res = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${apiKey}&limit=8`);
       const data = await res.json();
       setGifs(data.results || []);
     } catch (err) {
       console.error('GIF search failed:', err);
     }
+  }, []);
+
+  const handleGifSearch = (q: string) => {
+    setGifQuery(q);
+    if (!q) { setGifs([]); return; }
+    if (gifDebounceRef.current) clearTimeout(gifDebounceRef.current);
+    gifDebounceRef.current = setTimeout(() => fetchGifs(q), 300);
   };
 
   const sendGif = (url: string) => {
