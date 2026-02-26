@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campus Connect — 5-Week Development Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --gold:#C4972F;
+  --gold-light:#E8C560;
+  --gold-pale:#F5E6B8;
+  --gold-dim:rgba(196,151,47,.12);
+  --black:#0A0A0A;
+  --black-soft:#141414;
+  --black-card:#1A1A1A;
+  --black-elevated:#222;
+  --gray-700:#333;
+  --gray-500:#666;
+  --gray-400:#888;
+  --gray-300:#AAA;
+  --gray-100:#E5E5E5;
+  --white:#F8F6F0;
+  --font-serif:'Instrument Serif',Georgia,serif;
+  --font-sans:'DM Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:var(--gold) var(--black)}
+body{
+  font-family:var(--font-sans);
+  background:var(--black);
+  color:var(--white);
+  line-height:1.6;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--gold);color:var(--black)}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--black)}
+::-webkit-scrollbar-thumb{background:var(--gold);border-radius:3px}
+
+/* ── Noise overlay ── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Navigation ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:1rem 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  background:rgba(10,10,10,.7);
+  border-bottom:1px solid rgba(196,151,47,.1);
+  transition:all .4s;
+}
+nav.scrolled{background:rgba(10,10,10,.92);border-bottom-color:rgba(196,151,47,.25)}
+.nav-logo{
+  font-family:var(--font-serif);font-size:1.3rem;color:var(--gold);
+  display:flex;align-items:center;gap:.6rem;text-decoration:none;
+}
+.nav-logo svg{width:28px;height:28px}
+.nav-links{display:flex;gap:2rem;list-style:none}
+.nav-links a{
+  color:var(--gray-300);text-decoration:none;font-size:.85rem;
+  font-weight:500;letter-spacing:.03em;text-transform:uppercase;
+  transition:color .3s;position:relative;
+}
+.nav-links a::after{
+  content:'';position:absolute;bottom:-4px;left:0;width:0;height:1.5px;
+  background:var(--gold);transition:width .3s;
+}
+.nav-links a:hover{color:var(--gold)}
+.nav-links a:hover::after{width:100%}
+
+/* ── Reveal animation ── */
+.reveal{opacity:0;transform:translateY(40px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:.1s}
+.reveal-delay-2{transition-delay:.2s}
+.reveal-delay-3{transition-delay:.3s}
+.reveal-delay-4{transition-delay:.4s}
+
+/* ── Hero ── */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  padding:6rem 2rem 4rem;position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;top:-30%;left:50%;transform:translateX(-50%);
+  width:800px;height:800px;border-radius:50%;
+  background:radial-gradient(circle,rgba(196,151,47,.08) 0%,transparent 70%);
+  pointer-events:none;
+}
+.hero::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:200px;
+  background:linear-gradient(to top,var(--black),transparent);
+  pointer-events:none;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.45rem 1.2rem;border-radius:100px;
+  border:1px solid rgba(196,151,47,.3);
+  background:rgba(196,151,47,.06);
+  font-size:.78rem;font-weight:500;color:var(--gold-light);
+  letter-spacing:.05em;text-transform:uppercase;
+  margin-bottom:2rem;
+  animation:fadeInDown .8s .2s both;
+}
+.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+
+.hero h1{
+  font-family:var(--font-serif);font-weight:400;
+  font-size:clamp(3rem,8vw,7rem);line-height:1;
+  color:var(--white);margin-bottom:1rem;
+  animation:fadeInUp 1s .3s both;
+}
+.hero h1 span{
+  color:var(--gold);display:inline-block;
+  background:linear-gradient(135deg,var(--gold-light),var(--gold));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+
+.hero-tagline{
+  font-family:var(--font-serif);font-style:italic;
+  font-size:clamp(1.1rem,2.5vw,1.6rem);color:var(--gray-300);
+  margin-bottom:1.5rem;
+  animation:fadeInUp 1s .5s both;
+}
+.hero-desc{
+  max-width:560px;color:var(--gray-400);font-size:.95rem;line-height:1.7;
+  animation:fadeInUp 1s .7s both;
+}
+.hero-scroll{
+  position:absolute;bottom:3rem;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;
+  color:var(--gray-500);font-size:.7rem;letter-spacing:.15em;
+  text-transform:uppercase;z-index:2;
+  animation:fadeInUp 1s 1.2s both;
+}
+.hero-scroll .arrow{
+  width:20px;height:20px;border-right:1.5px solid var(--gold);
+  border-bottom:1.5px solid var(--gold);transform:rotate(45deg);
+  animation:bounceDown 2s infinite;
+}
+@keyframes bounceDown{0%,100%{transform:rotate(45deg) translateY(0)}50%{transform:rotate(45deg) translateY(6px)}}
+
+/* ── Section styling ── */
+section{padding:6rem 2rem;position:relative}
+.section-container{max-width:1100px;margin:0 auto}
+.section-label{
+  display:inline-flex;align-items:center;gap:.5rem;
+  font-size:.72rem;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:1rem;
+}
+.section-label::before{content:'';width:24px;height:1.5px;background:var(--gold)}
+.section-title{
+  font-family:var(--font-serif);font-size:clamp(2rem,4vw,3.2rem);
+  font-weight:400;color:var(--white);margin-bottom:.75rem;line-height:1.15;
+}
+.section-subtitle{
+  color:var(--gray-400);font-size:1rem;max-width:600px;margin-bottom:3rem;line-height:1.7;
+}
+
+/* ── Timeline / 5-Week Plan ── */
+#plan{background:var(--black-soft)}
+.timeline{position:relative;padding-left:3rem}
+.timeline::before{
+  content:'';position:absolute;left:11px;top:0;bottom:0;width:2px;
+  background:linear-gradient(to bottom,var(--gold),rgba(196,151,47,.15));
+}
+.week-block{position:relative;margin-bottom:3rem}
+.week-block:last-child{margin-bottom:0}
+.week-dot{
+  position:absolute;left:-3rem;top:6px;width:24px;height:24px;
+  border-radius:50%;border:2px solid var(--gold);
+  background:var(--black-soft);display:flex;align-items:center;justify-content:center;
+  z-index:2;transition:all .4s;
+}
+.week-dot::after{
+  content:'';width:8px;height:8px;border-radius:50%;
+  background:var(--gold);transition:transform .4s;
+}
+.week-block:hover .week-dot{background:var(--gold);box-shadow:0 0 20px rgba(196,151,47,.4)}
+.week-block:hover .week-dot::after{background:var(--black);transform:scale(1.2)}
+
+.week-header{display:flex;align-items:baseline;gap:1rem;margin-bottom:.75rem;flex-wrap:wrap}
+.week-number{
+  font-family:var(--font-mono);font-size:.7rem;font-weight:500;
+  color:var(--gold);background:rgba(196,151,47,.1);
+  padding:.3rem .7rem;border-radius:4px;letter-spacing:.05em;
+  border:1px solid rgba(196,151,47,.2);white-space:nowrap;
+}
+.week-title{
+  font-family:var(--font-serif);font-size:clamp(1.3rem,2.5vw,1.7rem);
+  color:var(--white);font-weight:400;
+}
+.week-tasks{
+  list-style:none;display:grid;gap:.5rem;
+}
+.week-tasks li{
+  display:flex;align-items:flex-start;gap:.65rem;
+  color:var(--gray-300);font-size:.88rem;line-height:1.55;
+  padding:.4rem .7rem;border-radius:6px;
+  transition:background .3s,color .3s;
+}
+.week-tasks li:hover{background:rgba(196,151,47,.06);color:var(--white)}
+.week-tasks li::before{
+  content:'';flex-shrink:0;width:5px;height:5px;
+  border-radius:50%;background:var(--gold);margin-top:.55rem;
+  opacity:.6;transition:opacity .3s;
+}
+.week-tasks li:hover::before{opacity:1}
+
+/* ── Tech Stack ── */
+#stack{background:var(--black)}
+.stack-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:1.25rem;
+}
+.stack-card{
+  background:var(--black-card);border:1px solid rgba(196,151,47,.1);
+  border-radius:12px;padding:1.75rem;position:relative;overflow:hidden;
+  transition:all .4s cubic-bezier(.16,1,.3,1);
+}
+.stack-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  opacity:0;transition:opacity .4s;
+}
+.stack-card:hover{
+  border-color:rgba(196,151,47,.3);
+  transform:translateY(-4px);
+  box-shadow:0 12px 40px rgba(0,0,0,.4),0 0 0 1px rgba(196,151,47,.15);
+}
+.stack-card:hover::before{opacity:1}
+.stack-card-icon{
+  width:40px;height:40px;border-radius:8px;
+  background:rgba(196,151,47,.08);border:1px solid rgba(196,151,47,.15);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:1rem;font-size:1.1rem;
+}
+.stack-card h3{
+  font-family:var(--font-serif);font-size:1.15rem;
+  color:var(--white);margin-bottom:.5rem;font-weight:400;
+}
+.stack-card p{color:var(--gray-400);font-size:.85rem;line-height:1.6;margin-bottom:1rem}
+.stack-tags{display:flex;flex-wrap:wrap;gap:.4rem}
+.stack-tag{
+  font-family:var(--font-mono);font-size:.68rem;
+  padding:.25rem .6rem;border-radius:4px;
+  background:rgba(196,151,47,.06);color:var(--gold-light);
+  border:1px solid rgba(196,151,47,.12);
+  white-space:nowrap;
+}
+
+/* ── Architecture ── */
+#arch{background:var(--black-soft)}
+.arch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem}
+.arch-item{
+  padding:1.5rem;border-radius:10px;
+  border:1px solid rgba(196,151,47,.08);
+  background:linear-gradient(135deg,rgba(196,151,47,.03),transparent);
+  transition:all .4s;
+}
+.arch-item:hover{
+  border-color:rgba(196,151,47,.25);
+  background:linear-gradient(135deg,rgba(196,151,47,.07),transparent);
+}
+.arch-item h4{
+  font-family:var(--font-serif);font-size:1.05rem;
+  color:var(--white);margin-bottom:.4rem;font-weight:400;
+  display:flex;align-items:center;gap:.5rem;
+}
+.arch-item h4 span{font-size:1.1rem}
+.arch-item p{color:var(--gray-400);font-size:.84rem;line-height:1.6}
+
+/* ── Schema diagram ── */
+#schema{background:var(--black)}
+.schema-visual{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:1rem;margin-top:2rem;
+}
+.schema-table{
+  background:var(--black-card);border:1px solid rgba(196,151,47,.12);
+  border-radius:10px;overflow:hidden;
+  transition:all .4s;
+}
+.schema-table:hover{border-color:rgba(196,151,47,.35);transform:translateY(-2px)}
+.schema-table-name{
+  padding:.7rem 1rem;
+  background:rgba(196,151,47,.08);border-bottom:1px solid rgba(196,151,47,.1);
+  font-family:var(--font-mono);font-size:.78rem;font-weight:500;
+  color:var(--gold-light);
+}
+.schema-table ul{list-style:none;padding:.6rem 1rem}
+.schema-table li{
+  font-family:var(--font-mono);font-size:.7rem;color:var(--gray-400);
+  padding:.2rem 0;display:flex;align-items:center;gap:.4rem;
+}
+.schema-table li .pk{color:var(--gold);font-size:.6rem;font-weight:600}
+.schema-table li .fk{color:#6BA3BE;font-size:.6rem;font-weight:600}
+
+/* ── Footer ── */
+footer{
+  border-top:1px solid rgba(196,151,47,.12);
+  padding:3rem 2rem;text-align:center;
+}
+.footer-brand{
+  font-family:var(--font-serif);font-size:1.5rem;color:var(--gold);
+  margin-bottom:.5rem;
+}
+.footer-sub{color:var(--gray-500);font-size:.85rem;margin-bottom:2rem}
+.footer-badges{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:.5rem;
+  max-width:700px;margin:0 auto;
+}
+.footer-badge{
+  font-family:var(--font-mono);font-size:.65rem;
+  padding:.35rem .75rem;border-radius:100px;
+  background:rgba(196,151,47,.06);color:var(--gray-300);
+  border:1px solid rgba(196,151,47,.1);
+  transition:all .3s;
+}
+.footer-badge:hover{border-color:var(--gold);color:var(--gold-light)}
+
+/* ── Progress bar at top ── */
+.progress-bar{
+  position:fixed;top:0;left:0;height:2px;
+  background:linear-gradient(90deg,var(--gold),var(--gold-light));
+  z-index:200;transition:width .1s;width:0;
+}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  nav{padding:.8rem 1rem}
+  .nav-links{display:none}
+  section{padding:4rem 1.25rem}
+  .timeline{padding-left:2.25rem}
+  .week-dot{left:-2.25rem;width:20px;height:20px}
+  .week-dot::after{width:6px;height:6px}
+  .stack-grid{grid-template-columns:1fr}
+  .arch-grid{grid-template-columns:1fr}
+  .schema-visual{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  .week-header{flex-direction:column;gap:.4rem}
+}
+@media(max-width:480px){
+  .hero h1{font-size:2.5rem}
+  .hero-tagline{font-size:1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- Navigation -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M16 3L3 11v4l13 8 13-8v-4L16 3z"/>
+      <path d="M3 15v6l13 8 13-8v-6"/>
+      <path d="M16 19v12"/>
+      <circle cx="16" cy="11" r="2.5" fill="currentColor" stroke="none"/>
+    </svg>
+    Campus Connect
+  </a>
+  <ul class="nav-links">
+    <li><a href="#plan">5-Week Plan</a></li>
+    <li><a href="#stack">Tech Stack</a></li>
+    <li><a href="#arch">Architecture</a></li>
+    <li><a href="#schema">Database</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    Spring 2026 &middot; CTU Senior Project
+  </div>
+  <h1>Campus <span>Connect</span></h1>
+  <p class="hero-tagline">Secure, Encrypted Messaging for College Students</p>
+  <p class="hero-desc">
+    A real-time messaging platform built for university communities. Verified .edu accounts, end-to-end encryption, and zero-knowledge architecture &mdash; your conversations stay yours.
+  </p>
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <div class="arrow"></div>
+  </div>
+</section>
+
+<!-- 5-Week Plan -->
+<section id="plan">
+  <div class="section-container">
+    <div class="reveal">
+      <div class="section-label">Development Roadmap</div>
+      <h2 class="section-title">5-Week Build Plan</h2>
+      <p class="section-subtitle">From zero to a production-grade encrypted messaging platform in five focused sprints.</p>
+    </div>
+
+    <div class="timeline">
+
+      <!-- Week 1 -->
+      <div class="week-block reveal">
+        <div class="week-dot"></div>
+        <div class="week-header">
+          <span class="week-number">WEEK 01</span>
+          <h3 class="week-title">Foundation &amp; Infrastructure</h3>
+        </div>
+        <ul class="week-tasks">
+          <li>Set up Supabase project (PostgreSQL, Auth, Realtime, Storage)</li>
+          <li>Design and deploy database schema &mdash; schools, profiles, conversations, messages, public_keys, push_tokens tables</li>
+          <li>Implement Row-Level Security (RLS) policies for all tables</li>
+          <li>Create database triggers for auto profile creation and school association</li>
+          <li>Scaffold React + TypeScript + Vite frontend</li>
+          <li>Configure Zustand state stores (auth, conversations, messages, presence)</li>
+          <li>Set up Vercel deployment pipeline</li>
+        </ul>
+      </div>
+
+      <!-- Week 2 -->
+      <div class="week-block reveal">
+        <div class="week-dot"></div>
+        <div class="week-header">
+          <span class="week-number">WEEK 02</span>
+          <h3 class="week-title">Authentication &amp; End-to-End Encryption</h3>
+        </div>
+        <ul class="week-tasks">
+          <li>Implement Supabase Auth with .edu email validation</li>
+          <li>Build signup, login, and password reset flows</li>
+          <li>Generate NaCl Box keypairs (Curve25519 + XSalsa20-Poly1305) on signup</li>
+          <li>Store private keys in IndexedDB via idb-keyval &mdash; never leaves device</li>
+          <li>Publish public keys to Supabase public_keys table</li>
+          <li>Implement client-side message encryption and decryption</li>
+          <li>Add encrypted file upload/download to Supabase Storage</li>
+          <li>Multi-factor authentication support</li>
+        </ul>
+      </div>
+
+      <!-- Week 3 -->
+      <div class="week-block reveal">
+        <div class="week-dot"></div>
+        <div class="week-header">
+          <span class="week-number">WEEK 03</span>
+          <h3 class="week-title">Real-Time Messaging &amp; Core Features</h3>
+        </div>
+        <ul class="week-tasks">
+          <li>Integrate Supabase Realtime for live message delivery (PostgreSQL Changes)</li>
+          <li>Build direct message (1:1) conversation flow</li>
+          <li>Build group chat system with role management (admin / member)</li>
+          <li>Implement typing indicators via Supabase Broadcast channels</li>
+          <li>Add online presence tracking</li>
+          <li>Read receipts with last_read_at timestamps</li>
+          <li>Message history with lazy loading</li>
+          <li>Encrypted file sharing (ephemeral uploads)</li>
+        </ul>
+      </div>
+
+      <!-- Week 4 -->
+      <div class="week-block reveal">
+        <div class="week-dot"></div>
+        <div class="week-header">
+          <span class="week-number">WEEK 04</span>
+          <h3 class="week-title">UI/UX Polish &amp; Discovery</h3>
+        </div>
+        <ul class="week-tasks">
+          <li>Build school-wide student directory scoped by university</li>
+          <li>One-click DM from directory</li>
+          <li>Gold &amp; Black theme system with CSS custom properties</li>
+          <li>Responsive mobile-first layout (Flexbox / Grid)</li>
+          <li>Custom SVG campus building icon</li>
+          <li>Conversation list with unread indicators</li>
+          <li>Message bubbles with sender info and timestamps</li>
+          <li>Settings page with profile management</li>
+        </ul>
+      </div>
+
+      <!-- Week 5 -->
+      <div class="week-block reveal">
+        <div class="week-dot"></div>
+        <div class="week-header">
+          <span class="week-number">WEEK 05</span>
+          <h3 class="week-title">Testing, Security Audit &amp; Launch</h3>
+        </div>
+        <ul class="week-tasks">
+          <li>Full TypeScript type coverage and ESLint cleanup</li>
+          <li>Cross-school data isolation verification</li>
+          <li>E2EE key lifecycle testing (generation, backup, restore)</li>
+          <li>RLS policy audit &mdash; ensure no data leaks</li>
+          <li>Performance optimization and database indexing</li>
+          <li>Vercel production deployment with environment variables</li>
+          <li>Render fallback deployment configuration</li>
+          <li>14-day delayed account deletion safety net</li>
+          <li>Documentation and CHANGELOG finalization</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Tech Stack -->
+<section id="stack">
+  <div class="section-container">
+    <div class="reveal">
+      <div class="section-label">Technology</div>
+      <h2 class="section-title">The Stack</h2>
+      <p class="section-subtitle">Modern, minimal, and battle-tested. Every tool chosen for a reason.</p>
+    </div>
+
+    <div class="stack-grid">
+      <div class="stack-card reveal reveal-delay-1">
+        <div class="stack-card-icon">&#9672;</div>
+        <h3>Frontend</h3>
+        <p>Component-driven UI with type safety and instant HMR during development.</p>
+        <div class="stack-tags">
+          <span class="stack-tag">React 18</span>
+          <span class="stack-tag">TypeScript 5.9</span>
+          <span class="stack-tag">Vite 7.3</span>
+          <span class="stack-tag">React Router v7</span>
+        </div>
+      </div>
+
+      <div class="stack-card reveal reveal-delay-2">
+        <div class="stack-card-icon">&#8644;</div>
+        <h3>State Management</h3>
+        <p>Lightweight, performant stores for auth, conversations, messages, and presence.</p>
+        <div class="stack-tags">
+          <span class="stack-tag">Zustand 5.0</span>
+          <span class="stack-tag">React Hooks</span>
+        </div>
+      </div>
+
+      <div class="stack-card reveal reveal-delay-3">
+        <div class="stack-card-icon">&#128274;</div>
+        <h3>Encryption</h3>
+        <p>NaCl Box for asymmetric E2EE. Private keys stored on-device in IndexedDB.</p>
+        <div class="stack-tags">
+          <span class="stack-tag">TweetNaCl.js</span>
+          <span class="stack-tag">NaCl Box</span>
+          <span class="stack-tag">idb-keyval</span>
+          <span class="stack-tag">IndexedDB</span>
+        </div>
+      </div>
+
+      <div class="stack-card reveal reveal-delay-1">
+        <div class="stack-card-icon">&#9729;</div>
+        <h3>Backend</h3>
+        <p>Serverless Postgres with row-level security, real-time subscriptions, auth, and storage.</p>
+        <div class="stack-tags">
+          <span class="stack-tag">Supabase</span>
+          <span class="stack-tag">PostgreSQL</span>
+          <span class="stack-tag">RLS Policies</span>
+          <span class="stack-tag">Realtime</span>
+          <span class="stack-tag">Storage</span>
+          <span class="stack-tag">Auth</span>
+        </div>
+      </div>
+
+      <div class="stack-card reveal reveal-delay-2">
+        <div class="stack-card-icon">&#9650;</div>
+        <h3>Deployment</h3>
+        <p>Static frontend on Vercel edge network with Render as a fallback host.</p>
+        <div class="stack-tags">
+          <span class="stack-tag">Vercel</span>
+          <span class="stack-tag">Render</span>
+          <span class="stack-tag">Edge CDN</span>
+        </div>
+      </div>
+
+      <div class="stack-card reveal reveal-delay-3">
+        <div class="stack-card-icon">&#10022;</div>
+        <h3>Design System</h3>
+        <p>Custom CSS with design tokens, distinctive serif + sans typography, and campus colors.</p>
+        <div class="stack-tags">
+          <span class="stack-tag">CSS Variables</span>
+          <span class="stack-tag">Instrument Serif</span>
+          <span class="stack-tag">DM Sans</span>
+          <span class="stack-tag">Gold &amp; Black</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section id="arch">
+  <div class="section-container">
+    <div class="reveal">
+      <div class="section-label">System Design</div>
+      <h2 class="section-title">Architecture Principles</h2>
+      <p class="section-subtitle">Zero-knowledge, serverless, and encrypted by default.</p>
+    </div>
+
+    <div class="arch-grid">
+      <div class="arch-item reveal reveal-delay-1">
+        <h4><span>&#9889;</span> Serverless Architecture</h4>
+        <p>No backend API server. All logic runs client-side or via Supabase row-level security policies. Zero infrastructure to manage.</p>
+      </div>
+      <div class="arch-item reveal reveal-delay-2">
+        <h4><span>&#128272;</span> Client-Side Encryption</h4>
+        <p>Messages are encrypted before leaving the browser. The server stores ciphertext only &mdash; it never sees plaintext content.</p>
+      </div>
+      <div class="arch-item reveal reveal-delay-3">
+        <h4><span>&#128737;</span> Row-Level Security</h4>
+        <p>PostgreSQL RLS policies enforce access control at the database level. No middleware, no API layer &mdash; the database is the firewall.</p>
+      </div>
+      <div class="arch-item reveal reveal-delay-1">
+        <h4><span>&#9889;</span> Real-Time WebSockets</h4>
+        <p>Supabase Realtime delivers messages instantly via WebSocket connections. Typing indicators and presence use broadcast channels.</p>
+      </div>
+      <div class="arch-item reveal reveal-delay-2">
+        <h4><span>&#128065;</span> Zero-Knowledge Design</h4>
+        <p>Private keys are generated on-device and stored in IndexedDB. They never leave the user's browser &mdash; not even to the server.</p>
+      </div>
+      <div class="arch-item reveal reveal-delay-3">
+        <h4><span>&#127891;</span> .edu Verified</h4>
+        <p>Only university email addresses are accepted. Schools are auto-detected from email domains, ensuring a trusted campus community.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Database Schema -->
+<section id="schema">
+  <div class="section-container">
+    <div class="reveal">
+      <div class="section-label">Data Layer</div>
+      <h2 class="section-title">Database Schema</h2>
+      <p class="section-subtitle">Six tables, fully RLS-protected, with automatic triggers for profile and school creation.</p>
+    </div>
+
+    <div class="schema-visual">
+      <div class="schema-table reveal reveal-delay-1">
+        <div class="schema-table-name">schools</div>
+        <ul>
+          <li><span class="pk">PK</span> id</li>
+          <li>domain</li>
+          <li>name</li>
+          <li>logo_url</li>
+          <li>created_at</li>
+        </ul>
+      </div>
+      <div class="schema-table reveal reveal-delay-2">
+        <div class="schema-table-name">profiles</div>
+        <ul>
+          <li><span class="pk">PK</span> id</li>
+          <li>email</li>
+          <li>display_name</li>
+          <li><span class="fk">FK</span> school_id</li>
+          <li>avatar_url</li>
+          <li>phone_number</li>
+          <li>preferred_language</li>
+          <li>is_verified</li>
+        </ul>
+      </div>
+      <div class="schema-table reveal reveal-delay-3">
+        <div class="schema-table-name">conversations</div>
+        <ul>
+          <li><span class="pk">PK</span> id</li>
+          <li>type</li>
+          <li>name</li>
+          <li><span class="fk">FK</span> school_id</li>
+          <li><span class="fk">FK</span> created_by</li>
+          <li>created_at</li>
+          <li>updated_at</li>
+        </ul>
+      </div>
+      <div class="schema-table reveal reveal-delay-1">
+        <div class="schema-table-name">conversation_members</div>
+        <ul>
+          <li><span class="fk">FK</span> conversation_id</li>
+          <li><span class="fk">FK</span> user_id</li>
+          <li>role</li>
+          <li>joined_at</li>
+          <li>last_read_at</li>
+        </ul>
+      </div>
+      <div class="schema-table reveal reveal-delay-2">
+        <div class="schema-table-name">messages</div>
+        <ul>
+          <li><span class="pk">PK</span> id</li>
+          <li><span class="fk">FK</span> conversation_id</li>
+          <li><span class="fk">FK</span> sender_id</li>
+          <li>content <em style="color:var(--gold);font-size:.6rem">E2EE</em></li>
+          <li>message_type</li>
+          <li>file_url</li>
+          <li>created_at</li>
+        </ul>
+      </div>
+      <div class="schema-table reveal reveal-delay-3">
+        <div class="schema-table-name">public_keys</div>
+        <ul>
+          <li><span class="fk">FK</span> user_id</li>
+          <li>public_key</li>
+          <li>created_at</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="reveal">
+    <div class="footer-brand">Campus Connect</div>
+    <p class="footer-sub">Built for CTU &mdash; Spring 2026</p>
+    <div class="footer-badges">
+      <span class="footer-badge">React</span>
+      <span class="footer-badge">TypeScript</span>
+      <span class="footer-badge">Vite</span>
+      <span class="footer-badge">Zustand</span>
+      <span class="footer-badge">Supabase</span>
+      <span class="footer-badge">PostgreSQL</span>
+      <span class="footer-badge">TweetNaCl.js</span>
+      <span class="footer-badge">IndexedDB</span>
+      <span class="footer-badge">Vercel</span>
+      <span class="footer-badge">Render</span>
+      <span class="footer-badge">NaCl Box</span>
+      <span class="footer-badge">RLS</span>
+      <span class="footer-badge">WebSockets</span>
+      <span class="footer-badge">E2EE</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Scroll-reveal observer
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Progress bar
+const bar = document.getElementById('progressBar');
+const nav = document.getElementById('nav');
+
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = (scrollTop / docHeight) * 100;
+  bar.style.width = progress + '%';
+
+  // Nav style on scroll
+  if (scrollTop > 60) {
+    nav.classList.add('scrolled');
+  } else {
+    nav.classList.remove('scrolled');
+  }
+}, { passive: true });
+
+// Smooth scroll for nav links
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+</body>
+</html>
