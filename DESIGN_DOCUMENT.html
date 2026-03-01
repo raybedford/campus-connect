@@ -130,6 +130,13 @@
     font-style: italic;
     line-height: 1.8;
   }
+  .diagram-note {
+    text-indent: 0;
+    font-size: 10pt;
+    color: #555;
+    margin: 4pt 0 12pt 0;
+    line-height: 1.5;
+  }
 </style>
 </head>
 <body>
@@ -204,6 +211,7 @@
            CLIENT-SIDE before reaching server
            using NaCl Box (TweetNaCl.js)
 </pre>
+<p class="diagram-note">Editable version available in <strong>diagrams.drawio</strong> (import into Lucidchart via File &gt; Import or open in draw.io).</p>
 
 <h2>Major Application Components</h2>
 <p>I broke the app down into nine components. Some of these, like the messaging engine and encryption layer, are tightly coupled by necessity &mdash; you cannot send a message without encrypting it first. Others, like translation and notifications, are more loosely attached and could be removed without breaking core functionality.</p>
