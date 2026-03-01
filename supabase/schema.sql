@@ -53,6 +53,8 @@ CREATE TABLE messages (
   message_type TEXT DEFAULT 'text', -- 'text', 'image', 'file'
   file_url TEXT, -- For attachments
   mentioned_user_ids UUID[] DEFAULT '{}', -- @mentioned user IDs (unencrypted metadata)
+  is_deleted BOOLEAN DEFAULT FALSE,
+  edited_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -208,3 +210,30 @@ DROP TRIGGER IF EXISTS on_message_inserted ON messages;
 CREATE TRIGGER on_message_inserted
   AFTER INSERT ON messages
   FOR EACH ROW EXECUTE FUNCTION update_conversation_timestamp();
+
+-- Also update conversation timestamp on message edits/deletes
+DROP TRIGGER IF EXISTS on_message_updated ON messages;
+CREATE TRIGGER on_message_updated
+  AFTER UPDATE ON messages
+  FOR EACH ROW EXECUTE FUNCTION update_conversation_timestamp();
+
+-- Enforce only the sender can edit/delete their own messages
+CREATE OR REPLACE FUNCTION enforce_message_edit_ownership()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_deleted IS DISTINCT FROM OLD.is_deleted AND auth.uid() != OLD.sender_id THEN
+    RAISE EXCEPTION 'Only the sender can delete their message';
+  END IF;
+  IF NEW.edited_at IS DISTINCT FROM OLD.edited_at AND auth.uid() != OLD.sender_id THEN
+    RAISE EXCEPTION 'Only the sender can edit their message';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER enforce_message_ownership
+  BEFORE UPDATE ON messages FOR EACH ROW
+  EXECUTE FUNCTION enforce_message_edit_ownership();
+
+-- Realtime needs full row on UPDATE events
+ALTER TABLE messages REPLICA IDENTITY FULL;

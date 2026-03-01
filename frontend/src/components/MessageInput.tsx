@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 
 interface Props {
   onSend: (text: string, mentionedUserIds?: string[]) => void;
@@ -7,11 +7,13 @@ interface Props {
   conversationId: string;
   members?: any[];
   uploading?: boolean;
+  initialText?: string;
+  isEditing?: boolean;
 }
 
 const EMOJIS = ['😀', '😂', '😍', '👍', '🔥', '🙌', '🎉', '📚', '🎓', '💻', '🤔', '😎', '💯', '✨', '👋', '👀'];
 
-export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [], uploading = false }: Props) {
+export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [], uploading = false, initialText, isEditing = false }: Props) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
@@ -24,6 +26,14 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const gifDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pre-fill text when entering edit mode
+  useEffect(() => {
+    if (initialText !== undefined && initialText !== null) {
+      setText(initialText);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [initialText]);
 
   const filteredMembers = mentionQuery !== null
     ? members.filter((m) => {
@@ -222,7 +232,7 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
           placeholder="Type a message... (@ to mention)"
         />
         <button type="submit" className="send-btn" disabled={!text.trim()}>
-          Send
+          {isEditing ? 'Save' : 'Send'}
         </button>
       </form>
     </div>

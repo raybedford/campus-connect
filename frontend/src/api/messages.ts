@@ -55,3 +55,42 @@ export async function sendMessage(
   if (error) throw error;
   return data as Message;
 }
+
+export async function editMessage(
+  messageId: string,
+  newContent: string
+): Promise<Message> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('messages')
+    .update({
+      content: newContent,
+      edited_at: new Date().toISOString(),
+    })
+    .eq('id', messageId)
+    .eq('sender_id', user.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Message;
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('messages')
+    .update({
+      is_deleted: true,
+      content: null,
+      file_url: null,
+    })
+    .eq('id', messageId)
+    .eq('sender_id', user.id);
+
+  if (error) throw error;
+}

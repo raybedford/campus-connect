@@ -64,6 +64,8 @@ export interface Message {
   file_url?: string;
   mentioned_user_ids?: string[];
   created_at: string;
+  is_deleted?: boolean;
+  edited_at?: string | null;
   sender?: Profile;
   encrypted_payloads?: EncryptedPayload[];
   // Client-side decrypted content (not from server)

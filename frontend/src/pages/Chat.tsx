@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getConversation, addMemberToConversation, getSchoolDirectory, markAsRead } from '../api/conversations';
-import { getMessages, sendMessage } from '../api/messages';
+import { getMessages, sendMessage, editMessage, deleteMessage } from '../api/messages';
 import { getBatchPublicKeys, getPublicKey } from '../api/keys';
 import { useAuthStore } from '../store/auth';
 import { useMessageStore } from '../store/message';
 import { usePresenceStore } from '../store/presence';
 import { encryptForMultipleRecipients, decryptMessage, encryptForRecipient } from '../crypto/encryption';
-import { encryptFile, decryptFile } from '../crypto/fileEncryption';
 import { getPrivateKey } from '../crypto/keyManager';
-import { uploadFile, downloadFile } from '../api/files';
+import { uploadFile, downloadFile, deleteFile } from '../api/files';
 import type { Conversation } from '../types';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
@@ -35,7 +34,7 @@ export default function Chat() {
   useEffect(() => {
     if (id) clearNotifs(id);
   }, [id, clearNotifs]);
-  
+
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [conversation, setConversation] = useState<Conversation | any>(null);
   const [memberKeys, setMemberKeys] = useState<Record<string, string>>({});
@@ -44,7 +43,8 @@ export default function Chat() {
   const [directory, setDirectory] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  
+  const [editingMessage, setEditingMessage] = useState<any | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processingRef = useRef(false);
   const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || EMPTY_SET);
@@ -62,7 +62,7 @@ export default function Chat() {
     }, 2500);
   };
 
-  const sharedFiles = displayMessages.filter(m => m.message_type === 'file');
+  const sharedFiles = displayMessages.filter(m => m.message_type === 'file' && !m.is_deleted);
 
   useEffect(() => {
     if (showAddMember) {
@@ -72,7 +72,7 @@ export default function Chat() {
 
   useEffect(() => {
     if (!id || !user) return;
-    
+
     // Initial mark as read
     markAsRead(id);
 
@@ -108,8 +108,24 @@ export default function Chat() {
   useEffect(() => {
     const sync = async () => {
       if (processingRef.current) return;
-      
+
       const newMsgs = storeMessages.filter(sm => !displayMessages.some(dm => dm.id === sm.id));
+
+      // Check for updated messages (edits/deletes from realtime)
+      let hasUpdates = false;
+      const updatedDisplay = displayMessages.map(dm => {
+        const storeCopy = storeMessages.find(sm => sm.id === dm.id);
+        if (storeCopy && (
+          storeCopy.is_deleted !== dm.is_deleted ||
+          storeCopy.edited_at !== dm.edited_at ||
+          storeCopy.decrypted_text !== dm.decrypted_text
+        )) {
+          hasUpdates = true;
+          return { ...dm, ...storeCopy };
+        }
+        return dm;
+      });
+
       if (newMsgs.length > 0) {
         // Mark as read when new messages arrive and we are in the chat
         if (id) markAsRead(id);
@@ -118,13 +134,15 @@ export default function Chat() {
         try {
           const decryptedNew = await decryptMessagesList(newMsgs, memberKeys);
           setDisplayMessages(prev => {
-            // Re-check inside setter to be absolutely sure no duplicates are added
-            const uniqueNew = decryptedNew.filter(n => !prev.some(p => p.id === n.id));
-            return [...prev, ...uniqueNew];
+            const base = hasUpdates ? updatedDisplay : prev;
+            const uniqueNew = decryptedNew.filter(n => !base.some(p => p.id === n.id));
+            return [...base, ...uniqueNew];
           });
         } finally {
           processingRef.current = false;
         }
+      } else if (hasUpdates) {
+        setDisplayMessages(updatedDisplay);
       }
     };
     sync();
@@ -138,6 +156,12 @@ export default function Chat() {
       try {
         // If already decrypted by another hook/process
         if (msg.decrypted_text) {
+          results.push(msg);
+          continue;
+        }
+
+        // Deleted messages — just pass through
+        if (msg.is_deleted) {
           results.push(msg);
           continue;
         }
@@ -278,14 +302,12 @@ export default function Chat() {
     }
   };
 
-  const [uploading, setUploading] = useState(false);
-
-  const handleFileSelect = async (file: File) => {
+  const handleEditMessage = async (message: any, newText: string) => {
     if (!id || !user || !conversation) return;
 
     const secretKey = await getPrivateKey();
-    if (!secretKey) {
-      alert('Encryption key not found. Go to Settings to set up your E2EE keys.');
+    if (!secretKey || Object.keys(memberKeys).length === 0) {
+      alert('Encryption keys not available.');
       return;
     }
 
@@ -296,17 +318,82 @@ export default function Chat() {
       })
       .filter((r: any) => r.publicKeyB64);
 
-    if (recipients.length === 0) {
-      alert('No recipients with encryption keys found.');
-      return;
+    const payloads = encryptForMultipleRecipients(newText, recipients, secretKey);
+
+    try {
+      await editMessage(message.id, JSON.stringify(payloads));
+
+      // Optimistic UI update
+      setDisplayMessages(prev =>
+        prev.map(m =>
+          m.id === message.id
+            ? { ...m, content: JSON.stringify(payloads), decrypted_text: newText, edited_at: new Date().toISOString() }
+            : m
+        )
+      );
+      setEditingMessage(null);
+    } catch (err) {
+      console.error('Failed to edit message:', err);
+      alert('Failed to edit message.');
     }
+  };
+
+  const handleDeleteMessage = async (message: any) => {
+    if (!confirm('Delete this message? This cannot be undone.')) return;
+
+    try {
+      await deleteMessage(message.id);
+
+      // Optimistic UI update
+      setDisplayMessages(prev =>
+        prev.map(m =>
+          m.id === message.id
+            ? { ...m, is_deleted: true, decrypted_text: null, content: null, file_url: null }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      alert('Failed to delete message.');
+    }
+  };
+
+  const handleDeleteFileMessage = async (message: any) => {
+    if (!confirm('Delete this file? The file will be permanently removed.')) return;
+
+    try {
+      // Delete file from storage
+      if (message.file_url) {
+        await deleteFile(message.file_url);
+      }
+
+      // Soft-delete the message
+      await deleteMessage(message.id);
+
+      // Optimistic UI update
+      setDisplayMessages(prev =>
+        prev.map(m =>
+          m.id === message.id
+            ? { ...m, is_deleted: true, decrypted_text: null, content: null, file_url: null }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+      alert('Failed to delete file.');
+    }
+  };
+
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelect = async (file: File) => {
+    if (!id || !user || !conversation) return;
 
     setUploading(true);
     try {
-      const fileData = new Uint8Array(await file.arrayBuffer());
-      const { encryptedBlob, keyPayloads } = encryptFile(fileData, recipients, secretKey);
-      const { path } = await uploadFile(new Blob([encryptedBlob]), 'temp', id, file.name, recipients.length);
-      const contentPayload = { filename: file.name, keys: keyPayloads };
+      // Upload raw file (no encryption)
+      const { path } = await uploadFile(file, id, file.name);
+      const contentPayload = { filename: file.name };
       const msg = await sendMessage(id, 'file', JSON.stringify(contentPayload), path);
 
       // Stop typing
@@ -328,39 +415,10 @@ export default function Chat() {
     if (!user || !msg.file_url) return;
 
     try {
-      const secretKey = await getPrivateKey();
-      if (!secretKey) {
-        alert('Encryption key not found. Go to Settings to set up your E2EE keys.');
-        return;
-      }
+      // Download raw file (no decryption needed)
+      const blob = await downloadFile(msg.file_url);
 
-      // Parse the key payloads from message content (new format: {filename, keys} or legacy array)
-      const parsed = JSON.parse(msg.content);
-      const payloads = Array.isArray(parsed) ? parsed : (parsed.keys || []);
-      const myPayload = payloads.find(
-        (p: any) => (p.recipient_id || p.recipientId) === user.id
-      );
-      if (!myPayload) {
-        alert('You do not have a decryption key for this file.');
-        return;
-      }
-
-      // Find the sender's public key
-      const senderId = msg.sender_id || msg.sender?.id;
-      const senderPubKey = memberKeys[senderId];
-      if (!senderPubKey) {
-        alert('Sender public key not found. Cannot decrypt file.');
-        return;
-      }
-
-      // Download encrypted blob
-      const encryptedBlob = await downloadFile(msg.file_url);
-      const encryptedData = new Uint8Array(await encryptedBlob.arrayBuffer());
-
-      // Decrypt
-      const decryptedData = decryptFile(encryptedData, myPayload, senderPubKey, secretKey);
-
-      // Extract original filename from decrypted_text or file_url
+      // Extract original filename
       let filename = 'download';
       if (msg.decrypted_text) {
         const match = msg.decrypted_text.match(/\[File:\s*(.+)\]/);
@@ -371,7 +429,6 @@ export default function Chat() {
       }
 
       // Trigger browser download
-      const blob = new Blob([decryptedData]);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -388,9 +445,9 @@ export default function Chat() {
 
   const handleAddMember = async (targetUser: any) => {
     if (!id || !user) return;
-    
+
     const shareHistory = window.confirm(`Would you like to share the entire conversation history with ${targetUser.display_name}? This will allow them to decrypt previous messages.`);
-    
+
     setIsAdding(true);
     try {
       let reEncrypted: any[] = [];
@@ -429,13 +486,13 @@ export default function Chat() {
       }
 
       await addMemberToConversation(id, targetUser.id, reEncrypted);
-      
+
       // Update local state
       const updatedConv = await getConversation(id);
       setConversation(updatedConv);
       setShowAddMember(false);
       setSearchQuery('');
-      
+
       // Optimistic key map update
       const targetKey = await getPublicKey(targetUser.id);
       if (targetKey) {
@@ -504,25 +561,38 @@ export default function Chat() {
               <p style={{ fontSize: '0.85rem', color: 'var(--cream-dim)' }}>No files shared in this chat.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                {sharedFiles.map((msg: any) => (
-                  <button
-                    key={msg.id}
-                    className="file-card"
-                    onClick={() => handleDownloadFile(msg)}
-                    title="Click to decrypt &amp; download"
-                  >
-                    <div className="file-card-icon">&#128196;</div>
-                    <div className="file-card-info">
-                      <div className="file-card-name">
-                        {msg.decrypted_text?.match(/\[File:\s*(.+)\]/)?.[1] || 'Encrypted File'}
-                      </div>
-                      <div className="file-card-date">
-                        {new Date(msg.created_at).toLocaleDateString()}
-                      </div>
+                {sharedFiles.map((msg: any) => {
+                  const isMyFile = (msg.sender_id || msg.sender?.id) === user?.id;
+                  return (
+                    <div key={msg.id} className="file-card-wrapper">
+                      <button
+                        className="file-card"
+                        onClick={() => handleDownloadFile(msg)}
+                        title="Click to download"
+                      >
+                        <div className="file-card-icon">&#128196;</div>
+                        <div className="file-card-info">
+                          <div className="file-card-name">
+                            {msg.decrypted_text?.match(/\[File:\s*(.+)\]/)?.[1] || 'File'}
+                          </div>
+                          <div className="file-card-date">
+                            {new Date(msg.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="file-card-dl">&#8595;</div>
+                      </button>
+                      {isMyFile && (
+                        <button
+                          className="file-card-delete"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteFileMessage(msg); }}
+                          title="Delete this file"
+                        >
+                          &#x2715;
+                        </button>
+                      )}
                     </div>
-                    <div className="file-card-dl">&#8595;</div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -536,6 +606,9 @@ export default function Chat() {
               isMine={(msg.sender_id || msg.sender?.id || msg.sender) === user?.id}
               senderName={msg.sender?.display_name || 'User'}
               members={conversation?.members || EMPTY_ARRAY}
+              onEdit={(m) => setEditingMessage(m)}
+              onDelete={handleDeleteMessage}
+              onDeleteFile={handleDeleteFileMessage}
             />
           ))}
           <TypingIndicator
@@ -546,13 +619,30 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
+        {editingMessage && (
+          <div className="edit-bar">
+            <div className="edit-bar-label">
+              Editing message
+              <button className="edit-bar-cancel" onClick={() => setEditingMessage(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
         <MessageInput
-          onSend={handleSend}
-          onFileSelect={handleFileSelect}
+          onSend={(text, mentionedUserIds) => {
+            if (editingMessage) {
+              handleEditMessage(editingMessage, text);
+            } else {
+              handleSend(text, mentionedUserIds);
+            }
+          }}
+          onFileSelect={editingMessage ? undefined : handleFileSelect}
           onTyping={handleTyping}
           conversationId={id!}
           members={conversation?.members || []}
           uploading={uploading}
+          initialText={editingMessage?.decrypted_text || undefined}
+          isEditing={!!editingMessage}
         />
       </div>
 
@@ -560,9 +650,9 @@ export default function Chat() {
         <div className="modal-overlay">
           <div className="auth-card" style={{ width: '100%', maxWidth: '400px' }}>
             <h3 style={{ color: 'var(--gold)', marginBottom: '1rem' }}>Add to Chat</h3>
-            <input 
-              type="text" 
-              placeholder="Search students..." 
+            <input
+              type="text"
+              placeholder="Search students..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ marginBottom: '1rem' }}
@@ -577,8 +667,8 @@ export default function Chat() {
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.display_name}</div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--cream-dim)' }}>{u.email}</div>
                     </div>
-                    <button 
-                      className="btn-nav-gold" 
+                    <button
+                      className="btn-nav-gold"
                       onClick={() => handleAddMember(u)}
                       disabled={isAdding}
                       style={{ fontSize: '0.7rem' }}

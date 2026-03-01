@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
-import { downloadFile } from '../api/files';
-import { decryptFile } from '../crypto/fileEncryption';
-import { getPrivateKey } from '../crypto/keyManager';
+import { getFileUrl } from '../api/files';
 
 interface MessageProps {
   message: any;
   isMine: boolean;
   senderName?: string;
   members?: any[];
+  onEdit?: (message: any) => void;
+  onDelete?: (message: any) => void;
+  onDeleteFile?: (message: any) => void;
 }
 
 // Simple Markdown Parser for bold, italics, code, and @mentions
@@ -51,11 +52,11 @@ function parseMarkdown(text: string, memberNames: string[] = [], currentUserName
   return html.replace(/\n/g, '<br />');
 }
 
-export default function MessageBubble({ message, isMine, senderName, members = [] }: MessageProps) {
+export default function MessageBubble({ message, isMine, senderName, members = [], onEdit, onDelete, onDeleteFile }: MessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
-  const [fileDecrypting, setFileDecrypting] = useState(false);
   const { profile, user } = useAuthStore();
 
   const dateObj = new Date(message.created_at);
@@ -71,68 +72,25 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   const fileName = hasText?.match(/\[File:\s*(.+)\]/)?.[1] || '';
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName);
 
-  // Auto-decrypt image files for inline preview
+  // Get signed URL for image files (no encryption — direct display)
   useEffect(() => {
-    if (!isFile || !isImage || filePreviewUrl || fileDecrypting) return;
-    if (!user || !message.file_url || !message.content) return;
+    if (!isFile || !isImage || filePreviewUrl) return;
+    if (!message.file_url) return;
 
     let cancelled = false;
-    const decryptPreview = async () => {
-      setFileDecrypting(true);
-      try {
-        const secretKey = await getPrivateKey();
-        if (!secretKey || cancelled) return;
+    getFileUrl(message.file_url).then((url) => {
+      if (!cancelled && url) setFilePreviewUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, [isFile, isImage, message.file_url]);
 
-        const parsed = JSON.parse(message.content);
-        const payloads = Array.isArray(parsed) ? parsed : (parsed.keys || []);
-        const myPayload = payloads.find(
-          (p: any) => (p.recipient_id || p.recipientId) === user.id
-        );
-        if (!myPayload) return;
-
-        // We need the sender's public key - get it from the members prop via getBatchPublicKeys
-        // For now, try to find the encryptor_id or sender
-        const senderId = myPayload.encryptor_id || myPayload.encryptorId || message.sender_id || message.sender?.id;
-
-        // Import getBatchPublicKeys to resolve the key
-        const { getBatchPublicKeys } = await import('../api/keys');
-        const keys = await getBatchPublicKeys([senderId]);
-        const senderKey = keys.find((k: any) => k.user === senderId);
-        if (!senderKey || cancelled) return;
-
-        const blob = await downloadFile(message.file_url);
-        if (cancelled) return;
-        const encData = new Uint8Array(await blob.arrayBuffer());
-        const decData = decryptFile(encData, myPayload, senderKey.publicKeyB64, secretKey);
-
-        // Guess MIME type from extension
-        const ext = fileName.split('.').pop()?.toLowerCase() || '';
-        const mimeMap: Record<string, string> = {
-          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-          gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp',
-        };
-        const mime = mimeMap[ext] || 'application/octet-stream';
-        const url = URL.createObjectURL(new Blob([decData], { type: mime }));
-        if (!cancelled) setFilePreviewUrl(url);
-      } catch (err) {
-        console.error('Image preview decrypt failed:', err);
-      } finally {
-        if (!cancelled) setFileDecrypting(false);
-      }
-    };
-    decryptPreview();
-    return () => {
-      cancelled = true;
-      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-    };
-  }, [isFile, isImage, message.file_url, user?.id]);
   const memberNames = members.map((m: any) => m.user?.display_name || m.display_name || '').filter(Boolean);
   const currentUserName = profile?.display_name || '';
 
   // Read status logic
   const getReadStatus = () => {
     if (!isMine || !members.length) return null;
-    
+
     const others = members.filter(m => (m.user_id || m.user?.id) !== user?.id);
     if (!others.length) return null;
 
@@ -155,7 +113,7 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   useEffect(() => {
     const userLang = profile?.preferred_language || 'en';
     const shouldAutoTranslate = !isMine && hasText && !translatedText && userLang !== 'en' && !isGif;
-    
+
     if (shouldAutoTranslate) {
       handleTranslate();
     }
@@ -172,7 +130,7 @@ export default function MessageBubble({ message, isMine, senderName, members = [
         `https://api.mymemory.translated.net/get?q=${encodeURIComponent(textToTranslate)}&langpair=auto|${targetLang}`
       );
       const data = await res.json();
-      
+
       if (data.responseData && data.responseData.translatedText) {
         const resultText = data.responseData.translatedText;
         if (resultText.toLowerCase().trim() !== textToTranslate.toLowerCase().trim()) {
@@ -186,19 +144,80 @@ export default function MessageBubble({ message, isMine, senderName, members = [
     }
   };
 
+  // Close action menu on outside click
+  useEffect(() => {
+    if (!showActions) return;
+    const close = () => setShowActions(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [showActions]);
+
+  // Deleted message placeholder
+  if (message.is_deleted) {
+    return (
+      <div className={`message-bubble ${isMine ? 'mine' : 'theirs'} deleted-message`}>
+        {!isMine && senderName && <div className="msg-sender">{senderName}</div>}
+        <div className="msg-content msg-deleted">
+          This message was deleted
+        </div>
+        <div className="msg-time">
+          {dateStr}{time}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`message-bubble ${isMine ? 'mine' : 'theirs'}`}>
       {!isMine && senderName && <div className="msg-sender">{senderName}</div>}
+
+      {/* Action menu for own messages */}
+      {isMine && (
+        <div className="msg-actions-wrapper">
+          <button
+            className="msg-actions-trigger"
+            onClick={(e) => { e.stopPropagation(); setShowActions(!showActions); }}
+          >
+            &#8942;
+          </button>
+          {showActions && (
+            <div className="msg-actions-menu">
+              {message.message_type === 'text' && !isGif && (
+                <button
+                  className="msg-action-item"
+                  onClick={() => { setShowActions(false); onEdit?.(message); }}
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                className="msg-action-item msg-action-delete"
+                onClick={() => {
+                  setShowActions(false);
+                  if (message.message_type === 'file') {
+                    onDeleteFile?.(message);
+                  } else {
+                    onDelete?.(message);
+                  }
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="msg-content">
         {isFile && isImage && filePreviewUrl ? (
           <div className="file-preview">
             <img src={filePreviewUrl} alt={fileName} className="file-preview-img" />
             <div className="file-preview-name">{fileName}</div>
           </div>
-        ) : isFile && isImage && fileDecrypting ? (
+        ) : isFile && isImage && !filePreviewUrl ? (
           <div className="file-loading">
             <span className="file-loading-spinner"></span>
-            <span>Decrypting image...</span>
+            <span>Loading image...</span>
           </div>
         ) : isFile && hasText ? (
           <div className="file-attachment">
@@ -239,12 +258,13 @@ export default function MessageBubble({ message, isMine, senderName, members = [
           </>
         ) : (
           <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '0.85rem', padding: '0.25rem 0' }}>
-            🔒 Encrypted Message (Import key in Settings to read)
+            Encrypted Message (Import key in Settings to read)
           </div>
         )}
       </div>
       <div className="msg-time" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
-        {status && <span style={{ opacity: 0.8, fontWeight: 600 }}>{status} • </span>}
+        {status && <span style={{ opacity: 0.8, fontWeight: 600 }}>{status} &bull; </span>}
+        {message.edited_at && <span className="msg-edited-label">(edited)</span>}
         {dateStr}{time}
       </div>
     </div>

@@ -7,6 +7,7 @@ import { getPublicKey } from '../api/keys';
 // Hook to subscribe to real-time chat updates
 export function useChatSubscription(conversationId: string | null) {
   const addMessage = useMessageStore((state) => state.addMessage);
+  const updateMessage = useMessageStore((state) => state.updateMessage);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -34,21 +35,31 @@ export function useChatSubscription(conversationId: string | null) {
 
           // 2. Fetch sender public key
           const keyData = await getPublicKey(newMsg.sender_id);
-          
+
           let decrypted_text = null;
-          if (keyData && newMsg.content) {
+
+          // Handle file messages: extract filename, don't decrypt
+          if (newMsg.message_type === 'file') {
+            try {
+              const parsed = JSON.parse(newMsg.content);
+              const filename = parsed.filename || 'File';
+              decrypted_text = `[File: ${filename}]`;
+            } catch {
+              decrypted_text = '[File: File]';
+            }
+          } else if (keyData && newMsg.content) {
             try {
               const payloads = JSON.parse(newMsg.content);
               const { data: { user } } = await supabase.auth.getUser();
               const myPayload = payloads.find((p: any) => (p.recipient_id || p.recipientId) === user?.id);
-              
+
               if (myPayload) {
                 // Use encryptor_id if present (for shared history), otherwise use sender public key
                 const effectiveEncryptorId = myPayload.encryptor_id || myPayload.encryptorId || newMsg.sender_id;
-                
+
                 // Fetch effective encryptor's public key
-                const encryptorKeyData = effectiveEncryptorId === newMsg.sender_id 
-                  ? keyData 
+                const encryptorKeyData = effectiveEncryptorId === newMsg.sender_id
+                  ? keyData
                   : await getPublicKey(effectiveEncryptorId);
 
                 if (encryptorKeyData) {
@@ -67,11 +78,70 @@ export function useChatSubscription(conversationId: string | null) {
             }
           }
 
-          addMessage(conversationId, { 
-            ...newMsg, 
-            sender, 
-            decrypted_text 
+          addMessage(conversationId, {
+            ...newMsg,
+            sender,
+            decrypted_text
           });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        async (payload) => {
+          const updated = payload.new as any;
+
+          // Soft-delete
+          if (updated.is_deleted) {
+            updateMessage(conversationId, updated.id, {
+              is_deleted: true,
+              decrypted_text: null,
+              content: null,
+              file_url: null,
+            });
+            return;
+          }
+
+          // Edit: re-decrypt the new content
+          if (updated.edited_at && updated.content) {
+            let decrypted_text = null;
+            try {
+              const payloads = JSON.parse(updated.content);
+              const { data: { user } } = await supabase.auth.getUser();
+              const myPayload = payloads.find(
+                (p: any) => (p.recipient_id || p.recipientId) === user?.id
+              );
+
+              if (myPayload) {
+                const effectiveEncryptorId =
+                  myPayload.encryptor_id || myPayload.encryptorId || updated.sender_id;
+                const keyData = await getPublicKey(effectiveEncryptorId);
+                if (keyData) {
+                  decrypted_text = await decryptMessage(
+                    {
+                      recipient_id: myPayload.recipient_id || myPayload.recipientId,
+                      ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
+                      nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64,
+                    },
+                    keyData.publicKeyB64
+                  );
+                }
+              }
+            } catch (err) {
+              console.error('Decryption failed for edited message:', err);
+            }
+
+            updateMessage(conversationId, updated.id, {
+              content: updated.content,
+              edited_at: updated.edited_at,
+              decrypted_text,
+            });
+          }
         }
       )
       .subscribe();
@@ -80,5 +150,5 @@ export function useChatSubscription(conversationId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, addMessage]);
+  }, [conversationId, addMessage, updateMessage]);
 }
