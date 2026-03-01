@@ -39,10 +39,10 @@ function parseMarkdown(text: string, memberNames: string[] = [], currentUserName
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
 
-  // 5a. @everyone: always highlighted for all users
+  // 5a. @everyone, @all, @here: always highlighted for all users
   html = html.replace(
-    /@everyone(?=\s|$|[.,!?;:])/g,
-    '<span class="mention mention-me">@everyone</span>'
+    /@(everyone|all|here)(?=\s|$|[.,!?;:])/g,
+    '<span class="mention mention-me">@$1</span>'
   );
 
   // 5b. @mentions: match @MemberName against known member names (longest first)

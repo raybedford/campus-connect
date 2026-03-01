@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { usePresenceStore } from '../store/presence';
 
 interface Props {
   onSend: (text: string, mentionedUserIds?: string[]) => void;
@@ -35,11 +36,17 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
     }
   }, [initialText]);
 
-  const EVERYONE_ENTRY = { _isEveryone: true, display_name: 'everyone' };
+  const onlineUsers = usePresenceStore((s) => s.onlineUsers);
+
+  const GROUP_ENTRIES = [
+    { _special: 'everyone' as const, label: 'everyone', desc: 'Notify all members' },
+    { _special: 'all' as const, label: 'all', desc: 'Notify all members' },
+    { _special: 'here' as const, label: 'here', desc: 'Notify online members' },
+  ];
 
   const filteredMembers = mentionQuery !== null
     ? [
-        ...('everyone'.startsWith(mentionQuery.toLowerCase()) ? [EVERYONE_ENTRY] : []),
+        ...GROUP_ENTRIES.filter(e => e.label.startsWith(mentionQuery.toLowerCase())),
         ...members.filter((m) => {
           const name = m.user?.display_name || m.display_name || '';
           return name.toLowerCase().includes(mentionQuery.toLowerCase());
@@ -110,13 +117,22 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
     const cursorPos = inputRef.current?.selectionStart || text.length;
     const after = text.slice(cursorPos);
 
-    if (member._isEveryone) {
-      setText(`${before}@everyone ${after}`);
-      // Add all member IDs
-      for (const m of members) {
+    if (member._special) {
+      const label = member.label; // "everyone", "all", or "here"
+      setText(`${before}@${label} ${after}`);
+
+      // Determine which members to ping
+      const targetMembers = label === 'here'
+        ? members.filter(m => {
+            const uid = m.user?.id || m.user_id || m.id;
+            return onlineUsers.has(uid);
+          })
+        : members; // "everyone" and "all" ping all members
+
+      for (const m of targetMembers) {
         const uid = m.user?.id || m.user_id || m.id;
         if (uid && !mentionedUsersRef.current.some((u) => u.id === uid)) {
-          mentionedUsersRef.current.push({ id: uid, name: 'everyone' });
+          mentionedUsersRef.current.push({ id: uid, name: label });
         }
       }
     } else {
@@ -161,15 +177,15 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
       {mentionQuery !== null && filteredMembers.length > 0 && (
         <div className="mention-dropdown">
           {filteredMembers.map((m, i) => {
-            if (m._isEveryone) {
+            if (m._special) {
               return (
                 <button
-                  key="_everyone"
+                  key={`_${m._special}`}
                   className={`mention-item ${i === mentionIndex ? 'active' : ''}`}
                   onMouseDown={(e) => { e.preventDefault(); selectMention(m); }}
                 >
-                  <span className="mention-item-name">@everyone</span>
-                  <span className="mention-item-email">Notify all members</span>
+                  <span className="mention-item-name">@{m.label}</span>
+                  <span className="mention-item-email">{m.desc}</span>
                 </button>
               );
             }
