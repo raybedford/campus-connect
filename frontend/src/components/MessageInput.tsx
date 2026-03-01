@@ -35,11 +35,16 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
     }
   }, [initialText]);
 
+  const EVERYONE_ENTRY = { _isEveryone: true, display_name: 'everyone' };
+
   const filteredMembers = mentionQuery !== null
-    ? members.filter((m) => {
-        const name = m.user?.display_name || m.display_name || '';
-        return name.toLowerCase().includes(mentionQuery.toLowerCase());
-      }).slice(0, 6)
+    ? [
+        ...('everyone'.startsWith(mentionQuery.toLowerCase()) ? [EVERYONE_ENTRY] : []),
+        ...members.filter((m) => {
+          const name = m.user?.display_name || m.display_name || '';
+          return name.toLowerCase().includes(mentionQuery.toLowerCase());
+        }).slice(0, 5),
+      ]
     : [];
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -101,16 +106,28 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
   };
 
   const selectMention = (member: any) => {
-    const name = member.user?.display_name || member.display_name || '';
-    const userId = member.user?.id || member.user_id || member.id;
     const before = text.slice(0, mentionStartPos);
     const cursorPos = inputRef.current?.selectionStart || text.length;
     const after = text.slice(cursorPos);
-    const newText = `${before}@${name} ${after}`;
-    setText(newText);
-    if (!mentionedUsersRef.current.some((u) => u.id === userId)) {
-      mentionedUsersRef.current.push({ id: userId, name });
+
+    if (member._isEveryone) {
+      setText(`${before}@everyone ${after}`);
+      // Add all member IDs
+      for (const m of members) {
+        const uid = m.user?.id || m.user_id || m.id;
+        if (uid && !mentionedUsersRef.current.some((u) => u.id === uid)) {
+          mentionedUsersRef.current.push({ id: uid, name: 'everyone' });
+        }
+      }
+    } else {
+      const name = member.user?.display_name || member.display_name || '';
+      const userId = member.user?.id || member.user_id || member.id;
+      setText(`${before}@${name} ${after}`);
+      if (!mentionedUsersRef.current.some((u) => u.id === userId)) {
+        mentionedUsersRef.current.push({ id: userId, name });
+      }
     }
+
     setMentionQuery(null);
     inputRef.current?.focus();
   };
@@ -144,6 +161,18 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
       {mentionQuery !== null && filteredMembers.length > 0 && (
         <div className="mention-dropdown">
           {filteredMembers.map((m, i) => {
+            if (m._isEveryone) {
+              return (
+                <button
+                  key="_everyone"
+                  className={`mention-item ${i === mentionIndex ? 'active' : ''}`}
+                  onMouseDown={(e) => { e.preventDefault(); selectMention(m); }}
+                >
+                  <span className="mention-item-name">@everyone</span>
+                  <span className="mention-item-email">Notify all members</span>
+                </button>
+              );
+            }
             const name = m.user?.display_name || m.display_name || '';
             const email = m.user?.email || m.email || '';
             return (

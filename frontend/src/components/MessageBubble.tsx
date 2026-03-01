@@ -39,7 +39,13 @@ function parseMarkdown(text: string, memberNames: string[] = [], currentUserName
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
 
-  // 5. @mentions: match @MemberName against known member names (longest first)
+  // 5a. @everyone: always highlighted for all users
+  html = html.replace(
+    /@everyone(?=\s|$|[.,!?;:])/g,
+    '<span class="mention mention-me">@everyone</span>'
+  );
+
+  // 5b. @mentions: match @MemberName against known member names (longest first)
   const sorted = [...memberNames].sort((a, b) => b.length - a.length);
   for (const name of sorted) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
