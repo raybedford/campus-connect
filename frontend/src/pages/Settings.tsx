@@ -105,21 +105,9 @@ export default function Settings() {
     setNotifStatus(permission);
 
     if (permission === 'granted') {
-      // In a real FCM/OneSignal app, you would get the token here.
-      // For this prototype, we'll generate a dummy browser token 
-      // to demonstrate the database and edge function logic.
-      const dummyToken = 'web_' + Math.random().toString(36).substring(7);
-      
-      try {
-        await supabase.from('push_tokens').upsert({
-          user_id: user.id,
-          token: dummyToken,
-          device_type: 'web'
-        });
-        setMessage('Notifications enabled successfully');
-      } catch (err) {
-        console.error('Failed to save push token:', err);
-      }
+      setMessage('Notifications enabled! You will receive alerts for new messages.');
+    } else if (permission === 'denied') {
+      setMessage('Notification permission was denied. You can change this in browser settings.');
     }
   };
 
@@ -270,7 +258,7 @@ export default function Settings() {
           <h3 style={{ color: 'var(--gold)', fontFamily: 'var(--serif)', marginBottom: '1rem' }}>Notifications</h3>
           <div style={{ background: 'var(--black)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--black-border)' }}>
             <p style={{ fontSize: '0.8rem', color: 'var(--cream-dim)', marginBottom: '1rem' }}>
-              Receive alerts for new messages when the app is in the background.
+              Receive alerts for new messages when you're not viewing that conversation.
             </p>
             <button 
               className={`btn ${notifStatus === 'granted' ? 'btn-outline' : 'btn-primary'}`} 
@@ -278,7 +266,7 @@ export default function Settings() {
               disabled={notifStatus === 'granted'}
               style={{ width: '100%', fontSize: '0.8rem' }}
             >
-              {notifStatus === 'granted' ? '✓ Notifications Enabled' : 'Enable Push Notifications'}
+              {notifStatus === 'granted' ? '✓ Notifications Enabled' : 'Enable Notifications'}
             </button>
           </div>
         </section>

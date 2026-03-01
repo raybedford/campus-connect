@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import { useAuthStore } from './store/auth';
+import { useNotifications } from './hooks/useNotifications';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -20,6 +21,9 @@ function AppRoutes() {
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
+
+  // Global notification listener (self-guards on auth state)
+  useNotifications();
 
   return (
     <>

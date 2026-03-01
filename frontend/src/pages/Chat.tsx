@@ -17,6 +17,7 @@ import MessageInput from '../components/MessageInput';
 import TypingIndicator from '../components/TypingIndicator';
 import { useChatSubscription } from '../hooks/useChatSubscription';
 import { usePresence } from '../hooks/usePresence';
+import { useNotificationStore } from '../store/notification';
 
 const EMPTY_ARRAY: any[] = [];
 const EMPTY_SET = new Set<string>();
@@ -28,6 +29,12 @@ export default function Chat() {
   const storeMessages = useMessageStore((s) => s.messages[id!] || EMPTY_ARRAY);
   const setMessages = useMessageStore((s) => s.setMessages);
   const addMessage = useMessageStore((s) => s.addMessage);
+  const clearNotifs = useNotificationStore((s) => s.clearForConversation);
+
+  // Clear notifications for this conversation when entering it
+  useEffect(() => {
+    if (id) clearNotifs(id);
+  }, [id, clearNotifs]);
   
   const [displayMessages, setDisplayMessages] = useState<any[]>([]);
   const [conversation, setConversation] = useState<Conversation | any>(null);
