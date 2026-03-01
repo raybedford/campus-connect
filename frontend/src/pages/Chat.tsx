@@ -454,7 +454,7 @@ export default function Chat() {
             senderPubKey,
             secretKey
           );
-          downloadBlob = new Blob([decryptedData]);
+          downloadBlob = new Blob([decryptedData.buffer.slice(decryptedData.byteOffset, decryptedData.byteOffset + decryptedData.byteLength)]);
         }
       }
 
