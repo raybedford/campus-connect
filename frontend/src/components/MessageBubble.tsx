@@ -112,7 +112,7 @@ export default function MessageBubble({ message, isMine, senderName, members = [
           );
 
           if (!cancelled) {
-            const url = URL.createObjectURL(new Blob([decryptedData.buffer.slice(decryptedData.byteOffset, decryptedData.byteOffset + decryptedData.byteLength)]));
+            const url = URL.createObjectURL(new Blob([new Uint8Array(decryptedData)]));
             objectUrlRef.current = url;
             setFilePreviewUrl(url);
           }
