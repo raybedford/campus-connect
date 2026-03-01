@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CampusConnect Application Design Document</title>
+<style>
+  @page {
+    margin: 1in;
+    size: letter;
+  }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12pt;
+    line-height: 2;
+    color: #000;
+    margin: 1in;
+    background: #fff;
+  }
+  p {
+    text-indent: 0.5in;
+    margin: 0 0 0 0;
+  }
+  p.no-indent {
+    text-indent: 0;
+  }
+  h1, h2, h3 {
+    font-family: 'Times New Roman', Times, serif;
+    margin-top: 12pt;
+    margin-bottom: 0;
+  }
+  /* APA 7 Level 1: Centered, Bold, Title Case */
+  h1 {
+    text-align: center;
+    font-weight: bold;
+    font-size: 12pt;
+  }
+  /* APA 7 Level 2: Left-Aligned, Bold, Title Case */
+  h2 {
+    text-align: left;
+    font-weight: bold;
+    font-size: 12pt;
+  }
+  /* APA 7 Level 3: Left-Aligned, Bold Italic, Title Case */
+  h3 {
+    text-align: left;
+    font-weight: bold;
+    font-style: italic;
+    font-size: 12pt;
+  }
+  .title-page {
+    text-align: center;
+    margin-top: 3in;
+    page-break-after: always;
+  }
+  .title-page h1 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 24pt;
+  }
+  .title-page p {
+    text-indent: 0;
+    line-height: 2;
+  }
+  .running-head {
+    font-size: 12pt;
+    text-align: left;
+    margin-bottom: 24pt;
+  }
+  .page-break {
+    page-break-before: always;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12pt 0;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  th, td {
+    border: 1px solid #000;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    font-weight: bold;
+    background: #f0f0f0;
+  }
+  pre {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 9pt;
+    line-height: 1.4;
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 12px;
+    margin: 12pt 0;
+    overflow-x: auto;
+    white-space: pre;
+    page-break-inside: avoid;
+  }
+  .figure-caption {
+    font-style: italic;
+    text-align: left;
+    text-indent: 0;
+    margin: 6pt 0 12pt 0;
+    font-size: 11pt;
+  }
+  .figure-label {
+    font-weight: bold;
+    font-style: italic;
+  }
+  .references p {
+    text-indent: -0.5in;
+    padding-left: 0.5in;
+  }
+  .abstract {
+    margin-bottom: 0;
+  }
+  .keywords {
+    text-indent: 0.5in;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<!-- TITLE PAGE -->
+<div class="title-page">
+  <h1>CampusConnect: Design and Architecture of a Secure<br>End-to-End Encrypted University Messaging Platform</h1>
+  <p>Student Name</p>
+  <p>Colorado Technical University</p>
+  <p>Course Name and Number</p>
+  <p>Instructor Name</p>
+  <p>March 1, 2026</p>
+</div>
+
+<!-- ABSTRACT -->
+<div class="page-break"></div>
+<h1>Abstract</h1>
+<p class="abstract no-indent">This document presents the design and architecture of CampusConnect, a secure messaging application built for university students. The platform employs end-to-end encryption (E2EE) using the NaCl cryptographic library to ensure that message content remains confidential and inaccessible to server-side systems (Bernstein et al., 2012). The application restricts registration to verified <code>.edu</code> email addresses, automatically detects institutional affiliation, and provides real-time messaging with features including group conversations, file sharing, typing indicators, and automatic translation. This document covers the system architecture, use case analysis, visual interface design, and data management strategy. The design follows established software engineering principles including separation of concerns, defense in depth, and the principle of least privilege (Sommerville, 2015).</p>
+<p class="keywords">Keywords: end-to-end encryption, messaging, NaCl, Supabase, React, university, software design</p>
+
+<!-- BODY -->
+<div class="page-break"></div>
+<h1>CampusConnect: Design and Architecture of a Secure End-to-End Encrypted University Messaging Platform</h1>
+
+<h1>System Architecture</h1>
+
+<h2>Overview</h2>
+<p>CampusConnect is a single-page web application that follows a client-server architecture with a Backend-as-a-Service (BaaS) model. The frontend is built with React 19 and TypeScript, while the backend leverages Supabase, an open-source alternative to Firebase that provides authentication, a PostgreSQL database, real-time subscriptions, and file storage (Supabase, 2024). A critical architectural decision is that all encryption and decryption occurs exclusively on the client side, ensuring that the server never has access to plaintext message content. This zero-knowledge architecture aligns with the principles outlined by Ermoshina et al. (2016) in their analysis of secure messaging protocols.</p>
+
+<p>The system follows a three-tier architecture consisting of the presentation layer (React components), the business logic layer (encryption engine, state management, and API services), and the data layer (Supabase PostgreSQL with Row-Level Security). According to Bass et al. (2012), this separation of concerns enables independent evolution of each layer while maintaining system integrity.</p>
+
+<h2>High-Level Architecture Diagram</h2>
+<p class="no-indent"><span class="figure-label">Figure 1</span></p>
+<p class="figure-caption">System Architecture Showing the Three-Tier Design and Data Flow</p>
+<pre>
+                          +----------------------------+
+                          |       STUDENT USER         |
+                          |   (Browser / Mobile Web)   |
+                          +-------------+--------------+
+                                        |
+                    +-------------------+-------------------+
+                    v                   v                   v
+            +--------------+   +--------------+   +--------------+
+            |   SIGN UP    |   |   LOG IN     |   |  USE APP     |
+            |   & VERIFY   |   |   (JWT)      |   |  (Messages,  |
+            |   .edu email |   |              |   |   Files,     |
+            +------+-------+   +------+-------+   |   Groups)    |
+                   |                  |            +------+-------+
+                   v                  v                   |
+            +-----------------------------+               |
+            |     SUPABASE AUTH (GoTrue)  |               |
+            |  - Email / password         |               |
+            |  - JWT session tokens       |               |
+            |  - Email verification       |               |
+            +-------------+---------------+               |
+                          |                               |
+         +----------------+----------------+              |
+         v                v                v              |
+  +------------+  +-------------+  +------------+         |
+  |  DATABASE  |  |  REALTIME   |  |  STORAGE   |&lt;-------+
+  | PostgreSQL |  |  WebSocket  |  |  S3 Files  |
+  |            |  |             |  |            |
+  | profiles   |  | New message |  | Encrypted  |
+  | messages   |  | events      |  | file blobs |
+  | schools    |  | Typing      |  |            |
+  | keys       |  | Presence    |  |            |
+  +------------+  +-------------+  +------------+
+
+           ALL messages and files encrypted
+           CLIENT-SIDE before reaching server
+           using NaCl Box (TweetNaCl.js)
+</pre>
+
+<h2>Major Application Components</h2>
+<p>The application is organized into nine major functional components. Table 1 summarizes each component, its purpose, and the key technologies employed.</p>
+
+<p class="no-indent"><span class="figure-label">Table 1</span></p>
+<p class="figure-caption">Major Application Components and Technologies</p>
+<table>
+  <tr><th>Component</th><th>Purpose</th><th>Key Technologies</th></tr>
+  <tr><td>Authentication</td><td>User registration, login, password reset, and email verification. Restricts access to .edu emails.</td><td>Supabase Auth (GoTrue), JWT</td></tr>
+  <tr><td>Messaging Engine</td><td>Send and receive encrypted text messages and files in real-time across DMs and group chats.</td><td>Supabase Realtime, Zustand</td></tr>
+  <tr><td>E2EE Crypto Layer</td><td>Client-side encryption and decryption of all message content and files. Private keys never leave the device.</td><td>TweetNaCl.js (NaCl Box, Secretbox), IndexedDB</td></tr>
+  <tr><td>School Directory</td><td>Browse and search verified students within the same university.</td><td>Supabase RLS, PostgreSQL</td></tr>
+  <tr><td>Presence &amp; Typing</td><td>Real-time online/offline indicators and typing status within conversations.</td><td>Supabase Broadcast + Presence</td></tr>
+  <tr><td>File Sharing</td><td>Encrypted file uploads with per-recipient key wrapping.</td><td>NaCl Secretbox, Supabase Storage</td></tr>
+  <tr><td>Translation</td><td>Automatic translation of incoming messages based on user preference.</td><td>MyMemory Translation API</td></tr>
+  <tr><td>School Detection</td><td>Auto-detects university from email domain on signup.</td><td>PostgreSQL trigger function</td></tr>
+  <tr><td>Notifications</td><td>In-app notification bell and browser notifications for new messages.</td><td>Web Notifications API, Supabase Realtime</td></tr>
+</table>
+
+<h1>Use Case Analysis</h1>
+
+<h2>Actors</h2>
+<p>The system recognizes two primary actors. The <strong>Student</strong> is the primary user: a verified university student with a .edu email who interacts with the system to send messages, manage conversations, share files, and configure settings. The <strong>System</strong> represents backend automation that handles school detection, profile creation, real-time message delivery, encryption key generation, and translation services.</p>
+
+<h2>Use Case Diagram</h2>
+<p class="no-indent"><span class="figure-label">Figure 2</span></p>
+<p class="figure-caption">Use Case Diagram Showing Student and System Interactions</p>
+<pre>
+  +------------------------------------------------------------------+
+  |                         CAMPUSCONNECT                            |
+  |                                                                  |
+  |    AUTHENTICATION          MESSAGING             SETTINGS        |
+  |   +--------------+   +--------------------+  +--------------+   |
+  |   |              |   |                    |  |              |   |
+  |   | Register     |   | Send Encrypted Msg |  | Manage E2EE  |   |
+  |   | (.edu email) |   |                    |  | Keys         |   |
+  |   |              |   | Create DM / Group  |  |              |   |
+  |   | Log In /     |   |                    |  | Update       |   |
+  |   | Log Out      |   | Share Encrypted    |  | Profile      |   |
+  |   |              |   | File               |  |              |   |
+  |   | Reset        |   |                    |  | Set Language |   |
+  |   | Password     |   | Translate Message  |  |              |   |
+  |   |              |   |                    |  | Enable       |   |
+  |   +--------------+   | View Read Receipts |  | Notifs       |   |
+  |          |           |                    |  |              |   |
+  |          |           | Add Group Member   |  +--------------+   |
+  |          |           |                    |         |           |
+  |          |           | Search / Send GIFs |         |           |
+  |          |           +--------------------+         |           |
+  |          |                     |                    |           |
+  +------------------------------------------------------------------+
+             |                     |                    |
+             v                     v                    v
+                          STUDENT (Actor)
+             ^                     ^                    ^
+             |                     |                    |
+  +------------------+  +------------------+  +------------------+
+  | Auto-Detect      |  | Real-Time        |  | Generate E2EE    |
+  | School           |  | Delivery         |  | Keypair          |
+  |                  |  |                  |  |                  |
+  | Auto-Create      |  | Typing/Presence  |  | Browser          |
+  | Profile          |  | Indicators       |  | Notifications    |
+  +------------------+  +------------------+  +------------------+
+                          SYSTEM (Actor)
+</pre>
+
+<h2>Detailed Use Cases</h2>
+
+<h3>Use Case 1: Send Encrypted Message</h3>
+<p>This use case describes the core messaging functionality. When a student sends a message, the system "encrypts the plaintext using the recipient's public key combined with the sender's private key through the NaCl Box construction" (Bernstein et al., 2012, p. 5). The ciphertext is then stored on the server, where it remains unreadable to any party that does not possess the corresponding private key.</p>
+
+<p class="no-indent"><span class="figure-label">Table 2</span></p>
+<p class="figure-caption">Use Case Specification for Send Encrypted Message</p>
+<table>
+  <tr><th>Field</th><th>Detail</th></tr>
+  <tr><td>Use Case ID</td><td>UC-1</td></tr>
+  <tr><td>Name</td><td>Send Encrypted Message</td></tr>
+  <tr><td>Actor</td><td>Student</td></tr>
+  <tr><td>Preconditions</td><td>Student is authenticated, has an E2EE keypair, and is a member of the target conversation.</td></tr>
+  <tr><td>Trigger</td><td>Student types a message and presses Send.</td></tr>
+</table>
+
+<p class="no-indent"><span class="figure-label">Figure 3</span></p>
+<p class="figure-caption">Workflow Diagram for Sending an Encrypted Message</p>
+<pre>
+  STUDENT A (Sender)           ENCRYPTION ENGINE           SUPABASE              STUDENT B (Recipient)
+  ------------------           -----------------           --------              ---------------------
+
+  +---------------+
+  | Type message  |----> Broadcast "typing"  ---------------------------->  "Student A is typing..."
+  +-------+-------+      indicator via
+          |               Realtime channel
+          v
+  +---------------+
+  | Press SEND    |
+  +-------+-------+
+          |
+          |            +----------------------+
+          +----------->| Fetch B's public key |<--- GET public_keys -----+
+          |            +----------+-----------+                          |
+          |                       |                              +-------+-----+
+          |                       v                              |  Database   |
+          |            +----------------------+                  +-------------+
+          |            | ENCRYPT message      |
+          |            |                      |
+          |            | NaCl Box:            |
+          |            |  A's private key     |
+          |            |  + B's public key    |
+          |            |  --> ciphertext      |
+          |            +----------+-----------+
+          |                       |
+          |                       v
+          |            +----------------------+
+          |            | Encrypted JSON blob  |
+          |            | [{                   |--- INSERT messages --->  +----------+
+          |            |   recipient: B,      |                         | Database |
+          |            |   ciphertext: "...", |                         | (stored  |
+          |            |   nonce: "..."       |                         | encrypted|
+          |            | }]                   |                         | server   |
+          |            +----------------------+                         | CANNOT   |
+          |                                                             | read it) |
+          |                                                             +----+-----+
+          |                                                                  |
+          |                                          Realtime push --------->+
+          |                                                                  |
+          |                                                           +------v--------+
+          |                                                           | DECRYPT msg   |
+          |                                                           | NaCl Box:     |
+          |                                                           |  B's private  |
+          |                                                           |  + A's public |
+          |                                                           |  --> plaintext|
+          |                                                           +------+--------+
+          |                                                                  |
+          |                                                           +------v--------+
+          |                                                           | Display in    |
+          |                                                           | chat bubble   |
+          |                                                           +------+--------+
+          |                                                                  |
+          |                                   <-- UPDATE last_read_at -------+
+  +-------v-------+
+  | See "Read"    |
+  | receipt       |
+  +---------------+
+</pre>
+
+<p><strong>Main Flow:</strong> (1) Student navigates to a conversation. (2) System loads and decrypts prior messages. (3) Student types a message. (4) System broadcasts a typing indicator. (5) Student presses Send. (6) System fetches recipient public keys. (7) System encrypts the message for each recipient using NaCl Box. (8) System stores the encrypted payload in the messages table. (9) Supabase Realtime pushes the event to all members. (10) Each recipient decrypts using their private key. (11) Conversation timestamp is updated via trigger.</p>
+
+<p><strong>Postconditions:</strong> The message is stored encrypted in the database, all online recipients see the decrypted message in real-time, and the conversation timestamp is updated.</p>
+
+<h3>Use Case 2: Register and Join School</h3>
+<p>The registration process demonstrates the system's automated school detection capability. As Sommerville (2015) notes, "trigger-based automation reduces the burden on users while maintaining data integrity" (p. 234). The handle_new_user() PostgreSQL trigger function parses the email domain, strips common institutional prefixes, and either creates or retrieves the associated school record.</p>
+
+<p class="no-indent"><span class="figure-label">Figure 4</span></p>
+<p class="figure-caption">Workflow Diagram for User Registration and School Detection</p>
+<pre>
+  STUDENT                     AUTH SERVICE              DATABASE TRIGGER            DATABASE
+  -------                     ------------              ----------------            --------
+
+  +---------------+
+  | Enter name,   |
+  | .edu email,   |
+  | password      |
+  +-------+-------+
+          |
+          v
+  +---------------+   No
+  | Email ends    +-------->  [STOP: "Use a .edu email"]
+  | with .edu?    |
+  +-------+-------+
+          | Yes
+          v
+          +-----------------> +---------------+
+          |  signUp()         | Create user   |
+          |                   | in auth.users |
+          |                   +-------+-------+
+          |                           |
+          |                           | TRIGGER: on_auth_user_created
+          |                           v
+          |                   +---------------------------+
+          |                   | Extract email domain      |
+          |                   | student.coloradotech.edu  |
+          |                   | --> ctuonline.edu          |
+          |                   +-----------+---------------+
+          |                               |
+          |                               v
+          |                   +------------------+  No   +------------------+
+          |                   | School exists?   +------>| Create school    |
+          |                   +--------+---------+       | + fetch logo     |
+          |                            | Yes             +--------+---------+
+          |                            v<-------------------------+
+          |                   +------------------+
+          |                   | Create profile   |
+          |                   | linked to school |
+          |                   +------------------+
+          |
+          |<--- Verification email sent ---+
+          |
+  +-------+-------+
+  | Click verify   |
+  | link in email  |
+  +-------+-------+
+          |
+          +-----------------> +---------------+
+          |  login()          | Return JWT    |
+          |                   +-------+-------+
+          |<--------------------------+
+          |
+          |                                                      +-----------------+
+          |                                                      | Generate NaCl   |
+          |                                                      | keypair         |
+          |                                                      |                 |
+          |                                                      | Private key --> |
+          |                                                      | IndexedDB       |
+          |                                                      |                 |
+          |                                                      | Public key -->  |
+          |                                              ------->| Server          |
+          |                                                      +-----------------+
+  +---------------+
+  | APP READY     |
+  +---------------+
+</pre>
+
+<p><strong>Main Flow:</strong> (1) Student enters name, .edu email, and password. (2) System validates the .edu domain. (3) Supabase Auth creates the user. (4) Database trigger extracts the domain and maps it to a school. (5) Trigger creates a profile linked to the school. (6) Verification email is sent. (7) Student verifies and logs in. (8) System generates an E2EE keypair and publishes the public key.</p>
+
+<p><strong>Postconditions:</strong> The student has an auth.users entry, a profiles row, a school association, and a published E2EE keypair.</p>
+
+<h3>Use Case 3: Create Group Conversation</h3>
+<p>Group conversations extend the messaging model to support multi-party communication. The system enforces school-scoped visibility through Row-Level Security policies, ensuring that "data access is controlled at the database level rather than relying solely on application logic" (Supabase, 2024, Security section).</p>
+
+<p class="no-indent"><span class="figure-label">Figure 5</span></p>
+<p class="figure-caption">Workflow Diagram for Creating a Group Conversation</p>
+<pre>
+  STUDENT                                        SUPABASE
+  -------                                        --------
+
+  +--------------+
+  | Tap "+" on   |
+  | Messages page|
+  +------+-------+
+         |
+         v
+  +--------------+
+  | Choose mode: |
+  | DM or GROUP  |
+  +------+-------+
+         | Group
+         v
+  +--------------+       +--------------+
+  | Search and   +------>| Query school |
+  | browse       |<------| directory    |
+  | students     |       | (same school |
+  +--------------+       | only via RLS)|
+         |               +--------------+
+         v
+  +--------------+
+  | Select 2+    |
+  | members      |
+  +------+-------+
+         |
+         v
+  +--------------+       +----------------------------------+
+  | Tap "Create  +------>| INSERT conversations             |
+  | Group (N)"   |       |   type: 'group'                  |
+  +--------------+       |   created_by: student            |
+                         +----------------------------------+
+                         | INSERT conversation_members      |
+                         |   creator  --> role: 'admin'     |
+                         |   member 1 --> role: 'member'    |
+                         |   member 2 --> role: 'member'    |
+                         +--------------+-------------------+
+                                        |
+                                        v
+                         +----------------------------------+
+                         | Group appears in ALL members'    |
+                         | conversation lists via Realtime  |
+                         | Ready for encrypted messaging    |
+                         +----------------------------------+
+</pre>
+
+<h3>Use Case 4: Share Encrypted File</h3>
+<p>File sharing employs a hybrid encryption scheme. As Bernstein et al. (2012) explain, "symmetric encryption is used for bulk data, while asymmetric encryption wraps the symmetric key for each recipient" (p. 8). This approach balances performance with the security requirements of multi-recipient file sharing.</p>
+
+<p class="no-indent"><span class="figure-label">Figure 6</span></p>
+<p class="figure-caption">Workflow Diagram for Encrypted File Sharing</p>
+<pre>
+  STUDENT (Sender)             ENCRYPTION ENGINE              SUPABASE
+  ----------------             -----------------              --------
+
+  +---------------+
+  | Tap paperclip |
+  | Select file   |
+  +-------+-------+
+          |
+          |            +--------------------------+
+          +----------->| 1. Read file into memory |
+          |            +----------+---------------+
+          |                       |
+          |                       v
+          |            +--------------------------+
+          |            | 2. Generate RANDOM        |
+          |            |    symmetric key          |
+          |            |    (NaCl Secretbox)       |
+          |            +----------+---------------+
+          |                       |
+          |                       v
+          |            +--------------------------+
+          |            | 3. ENCRYPT file with     |
+          |            |    symmetric key         |
+          |            +----------+---------------+
+          |                       |
+          |                       v
+          |            +--------------------------+
+          |            | 4. For EACH member:      |         +-------------+
+          |            |    WRAP symmetric key    +-------->| Upload blob |
+          |            |    with their public key |         | to Storage  |
+          |            |    (NaCl Box)            |         +------+------+
+          |            |                          |                |
+          |            |    Member A: wrapped_key |                v
+          |            |    Member B: wrapped_key |         +-------------+
+          |            +--------------------------+         | Save msg    |
+          |                                                | with file   |
+          |                                                | URL + all   |
+          |                                                | wrapped keys|
+          |                                                +-------------+
+          |
+          |                  RECIPIENT FLOW:
+          |            +--------------------------+
+          |            | 1. Download encrypted    |
+          |            |    blob from Storage     |
+          |            | 2. UNWRAP symmetric key  |
+          |            |    with own private key  |
+          |            | 3. DECRYPT file with     |
+          |            |    symmetric key         |
+          |            | 4. Display / download    |
+          |            +--------------------------+
+</pre>
+
+<h1>Main Screen Visual Design</h1>
+
+<h2>Design System</h2>
+<p>The application employs a dark theme with gold accent colors, following contemporary mobile-first design principles (Babich, 2019). The color palette consists of a primary background (#0a0a0a), card surfaces (#1a1a1a), and gold accents (#cfb87c) for interactive elements and branding. Typography uses the DM Sans font family for body text, Instrument Serif for headings, and JetBrains Mono for code and encryption-related displays.</p>
+
+<h2>Mobile Conversation List</h2>
+<p class="no-indent"><span class="figure-label">Figure 7</span></p>
+<p class="figure-caption">Mobile Wireframe of the Main Conversation List Screen</p>
+<pre>
+  +--------------------------------------+
+  |  Campus Connect       [CTU Online]   |  Navbar
+  |         Messages  Directory  (gear)  |
+  +--------------------------------------+
+  |  Messages                      [+]  |  Header
+  +--------------------------------------+
+  |                                      |
+  |  [JD]  Jane Doe             2:30p   |
+  |        (lock) Encrypted message  *2 |  Conversation Card
+  | - - - - - - - - - - - - - - - - - - |
+  |  [SG]  Study Group           1:15p  |
+  |        (lock) Encrypted message     |
+  | - - - - - - - - - - - - - - - - - - |
+  |  [AB]  Alex Brown           11:00a  |
+  |        (lock) Encrypted message     |
+  | - - - - - - - - - - - - - - - - - - |
+  |  [CS]  CS 101 Group          Yest.  |
+  |        (lock) Encrypted message     |
+  +--------------------------------------+
+</pre>
+
+<h2>Mobile Chat View</h2>
+<p class="no-indent"><span class="figure-label">Figure 8</span></p>
+<p class="figure-caption">Mobile Wireframe of the Chat Interface</p>
+<pre>
+  +--------------------------------------+
+  |  &lt;- Jane Doe            [+Add][Files]|  Header
+  +--------------------------------------+
+  |                                      |
+  |         Wednesday, Feb 26            |
+  |                                      |
+  |  +---------------------+             |  Incoming message
+  |  | Hey, are you in     |             |  (left-aligned)
+  |  | Prof. Smith's class?|             |
+  |  +---------------------+             |
+  |   Jane - 2:15 PM                     |
+  |                                      |
+  |            +---------------------+   |  Own message
+  |            | Yeah! Section 2.    |   |  (right-aligned)
+  |            | Want to study       |   |
+  |            | together?           |   |
+  |            +---------------------+   |
+  |                   2:16 PM - Read     |
+  |                                      |
+  |   Jane is typing  ...               |
+  +--------------------------------------+
+  | (emoji)(GIF)(clip)| Type a msg | >> |  Input
+  +--------------------------------------+
+</pre>
+
+<h2>Desktop Split Panel</h2>
+<p class="no-indent"><span class="figure-label">Figure 9</span></p>
+<p class="figure-caption">Desktop Wireframe Showing Split-Panel Layout</p>
+<pre>
+  +---------------------------------------------------------------------+
+  |  Campus Connect      CTU Online       Messages  Directory  (gear)   |
+  +-----------------------+---------------------------------------------+
+  |                       |                                             |
+  | Messages        [+]  |  &lt;- Jane Doe                  [+Add][Files] |
+  |- - - - - - - - - - - | - - - - - - - - - - - - - - - - - - - - - -|
+  |                       |                                             |
+  | [JD] Jane Doe  2:30p |         Wednesday, Feb 26                   |
+  |   (lock) Encryp.  *2 |                                             |
+  |                       |  +------------------+                       |
+  | [SG] Study Grp 1:15p |  | Hey, are you in  |                      |
+  |   (lock) Encrypted    |  | Prof. Smith's?   |                      |
+  |                       |  +------------------+                       |
+  | [AB] Alex B.  11:00a |   Jane - 2:15 PM                           |
+  |   (lock) Encrypted    |                                             |
+  |                       |           +------------------+              |
+  | [CS] CS 101    Yest.  |           | Yeah! Section 2. |              |
+  |   (lock) Encrypted    |           | Want to study    |              |
+  |                       |           | together?        |              |
+  |                       |           +------------------+              |
+  |                       |                  2:16 PM - Read             |
+  |                       |                                             |
+  |                       |   Jane is typing  ...                      |
+  |                       | +-------------------------------------+    |
+  |                       | | (emoji)(GIF)(clip)| Type msg   | >> |    |
+  |                       | +-------------------------------------+    |
+  +-----------------------+---------------------------------------------+
+</pre>
+
+<h1>Data Management Requirements</h1>
+
+<h2>Entity-Relationship Model</h2>
+<p>The database schema consists of seven tables with clearly defined relationships enforced through foreign key constraints. As Elmasri and Navathe (2015) emphasize, "referential integrity constraints are essential for maintaining consistency in relational databases" (p. 78). The use of ON DELETE CASCADE ensures that orphaned records are automatically removed when a parent entity is deleted.</p>
+
+<p class="no-indent"><span class="figure-label">Figure 10</span></p>
+<p class="figure-caption">Entity-Relationship Diagram for the CampusConnect Database</p>
+<pre>
+  +----------------+                              +----------------+
+  |  auth.users    |                              |    schools     |
+  |----------------|                              |----------------|
+  | PK id          |                              | PK id          |
+  |    email       |                              |    domain      |
+  |    password    |                              |    name        |
+  |    metadata    |                              |    logo_url    |
+  +-------+--------+                              +-------+--------+
+          | 1:1                                           | 1:many
+          |                                               |
+          v                                               v
+  +---------------------------------------------------------------+
+  |                        profiles                                |
+  |---------------------------------------------------------------|
+  | PK id --> auth.users    FK school_id --> schools               |
+  |    email    display_name    avatar_url    phone_number         |
+  |    preferred_language       is_verified   created_at           |
+  +----+------------+------------------+----------------+----------+
+       | 1:many     | 1:1              | 1:many         | 1:many
+       v            v                  v                v
+  +----------+ +----------+  +--------------+  +----------+
+  |push_     | |public_   |  |conversation_ |  |messages  |
+  |tokens    | |keys      |  |members       |  |          |
+  |----------| |----------|  |--------------|  |----------|
+  |PK id     | |PK user_id|  |PK conv_id    |  |PK id     |
+  |FK user_id| |  pub_key |  |PK user_id    |  |FK conv_id|
+  |   token  | |          |  |   role        |  |FK sender |
+  |   device | +----------+  |   joined_at   |  |  content |
+  +----------+               |   last_read   |  |  type    |
+                             +------+--------+  |  file_url|
+                                    | many:1    +----+-----+
+                                    |                | many:1
+                                    v                v
+                             +----------------------------+
+                             |       conversations        |
+                             |----------------------------|
+                             | PK id                      |
+                             |    type ('dm' | 'group')   |
+                             |    name                    |
+                             | FK school_id --> schools    |
+                             | FK created_by --> profiles  |
+                             |    created_at, updated_at   |
+                             +----------------------------+
+</pre>
+
+<h2>Row-Level Security</h2>
+<p>All tables enforce Row-Level Security (RLS), which Supabase (2024) describes as "PostgreSQL's built-in mechanism for restricting row access based on the current user." Table 3 summarizes the access control matrix.</p>
+
+<p class="no-indent"><span class="figure-label">Table 3</span></p>
+<p class="figure-caption">Row-Level Security Access Control Matrix</p>
+<table>
+  <tr><th>Table</th><th>SELECT</th><th>INSERT</th><th>UPDATE</th></tr>
+  <tr><td>schools</td><td>Everyone</td><td>System only</td><td>N/A</td></tr>
+  <tr><td>profiles</td><td>Everyone</td><td>System only</td><td>Own only</td></tr>
+  <tr><td>conversations</td><td>Members*</td><td>Creator</td><td>Members*</td></tr>
+  <tr><td>conversation_members</td><td>Members*</td><td>Authenticated</td><td>Own only</td></tr>
+  <tr><td>messages</td><td>Members*</td><td>Sender + Member*</td><td>Members*</td></tr>
+  <tr><td>public_keys</td><td>Authenticated</td><td>Own only</td><td>Own only</td></tr>
+  <tr><td>push_tokens</td><td>Own only</td><td>Own only</td><td>Own only</td></tr>
+</table>
+<p class="no-indent" style="font-size: 10pt; font-style: italic;">* "Members" indicates the user must be in conversation_members for that conversation, enforced by the get_my_conv_ids() helper function.</p>
+
+<h2>Encryption at Rest</h2>
+<p>Table 4 documents where each data type is stored and its encryption method. The zero-knowledge architecture ensures that "even a compromised server cannot reveal message content" (Ermoshina et al., 2016, p. 12).</p>
+
+<p class="no-indent"><span class="figure-label">Table 4</span></p>
+<p class="figure-caption">Data Encryption Model</p>
+<table>
+  <tr><th>Data Type</th><th>Storage Location</th><th>Encryption Method</th></tr>
+  <tr><td>Message text</td><td>messages.content</td><td>NaCl Box (per-recipient ciphertext)</td></tr>
+  <tr><td>File contents</td><td>Supabase Storage</td><td>NaCl Secretbox (random symmetric key)</td></tr>
+  <tr><td>File keys</td><td>messages.content</td><td>NaCl Box (wrapped per-recipient)</td></tr>
+  <tr><td>Private keys</td><td>Browser IndexedDB</td><td>Local device only (not transmitted)</td></tr>
+  <tr><td>Public keys</td><td>public_keys table</td><td>Plaintext (public by design)</td></tr>
+  <tr><td>Passwords</td><td>auth.users</td><td>bcrypt (managed by Supabase Auth)</td></tr>
+</table>
+
+<h2>Data Flow Summary</h2>
+<p class="no-indent"><span class="figure-label">Figure 11</span></p>
+<p class="figure-caption">Simplified Data Flow for End-to-End Encrypted Messaging</p>
+<pre>
+  +----------+     +------------+     +------------+     +----------+
+  | Student  |     |   Client   |     |  Supabase  |     | Student  |
+  | (Sender) |     |  (Crypto)  |     |  (Server)  |     | (Reader) |
+  +----+-----+     +-----+------+     +-----+------+     +----+-----+
+       |                  |                  |                  |
+       |  Type message    |                  |                  |
+       +----------------->|                  |                  |
+       |                  |  Encrypt with    |                  |
+       |                  |  recipient's     |                  |
+       |                  |  public key      |                  |
+       |                  |                  |                  |
+       |                  |  Store encrypted |                  |
+       |                  +----------------->|                  |
+       |                  |                  |                  |
+       |                  |                  |  Push via        |
+       |                  |                  |  Realtime        |
+       |                  |                  +----------------->|
+       |                  |                  |                  |
+       |                  |                  |         Decrypt  |
+       |                  |                  |         with own |
+       |                  |                  |         private  |
+       |                  |                  |         key      |
+       |                  |                  |                  |
+       |                  |                  |         Display  |
+       |                  |                  |<-----------------+
+       |                  |                  |   Mark as read   |
+       |  See "Read"      |                  |                  |
+       |<-----------------+<-----------------+                  |
+       |                  |  Realtime update |                  |
+       v                  v                  v                  v
+</pre>
+
+<h2>Storage Considerations</h2>
+<p>Message storage follows an append-only model with paginated queries to prevent loading entire conversation histories (Sommerville, 2015). Foreign key constraints with ON DELETE CASCADE ensure referential integrity when users are removed. The conversation_members table uses a composite primary key on (conversation_id, user_id) to enable efficient membership lookups, and the get_my_conv_ids() helper function caches results per request to prevent recursive RLS evaluation.</p>
+
+<!-- REFERENCES -->
+<div class="page-break"></div>
+<h1>References</h1>
+<div class="references">
+<p>Babich, N. (2019). <em>Mobile UI design: Best practices and guidelines</em>. Smashing Magazine. https://www.smashingmagazine.com/2018/02/guide-user-experience-design-mobile/</p>
+
+<p>Bass, L., Clements, P., &amp; Kazman, R. (2012). <em>Software architecture in practice</em> (3rd ed.). Addison-Wesley Professional.</p>
+
+<p>Bernstein, D. J., Lange, T., &amp; Schwabe, P. (2012). The security impact of a new cryptographic library. In A. Hevia &amp; G. Neven (Eds.), <em>Progress in cryptology - LATINCRYPT 2012</em> (pp. 159-176). Springer. https://doi.org/10.1007/978-3-642-33481-8_9</p>
+
+<p>Elmasri, R., &amp; Navathe, S. B. (2015). <em>Fundamentals of database systems</em> (7th ed.). Pearson.</p>
+
+<p>Ermoshina, K., Musiani, F., &amp; Halpin, H. (2016). End-to-end encrypted messaging protocols: An overview. In F. Bagnoli et al. (Eds.), <em>Internet science</em> (pp. 244-254). Springer. https://doi.org/10.1007/978-3-319-45982-0_22</p>
+
+<p>Sommerville, I. (2015). <em>Software engineering</em> (10th ed.). Pearson Education.</p>
+
+<p>Supabase. (2024). <em>Supabase documentation: Row level security</em>. https://supabase.com/docs/guides/auth/row-level-security</p>
+</div>
+
+</body>
+</html>
