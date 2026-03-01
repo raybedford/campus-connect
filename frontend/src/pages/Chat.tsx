@@ -142,6 +142,23 @@ export default function Chat() {
           continue;
         }
 
+        // File messages: don't decrypt key payloads as text — just extract filename
+        if (msg.message_type === 'file') {
+          let filename = 'File';
+          try {
+            const parsed = JSON.parse(msg.content);
+            if (parsed.filename) {
+              filename = parsed.filename;
+            } else if (Array.isArray(parsed)) {
+              // Old format (no filename) — try to get extension from file_url
+              const ext = msg.file_url?.split('.').pop() || '';
+              filename = ext ? `file.${ext}` : 'File';
+            }
+          } catch {}
+          results.push({ ...msg, decrypted_text: `[File: ${filename}]` });
+          continue;
+        }
+
         const payloads = msg.content ? JSON.parse(msg.content) : [];
         const senderId = msg.sender_id || (msg.sender?.id);
 
@@ -152,7 +169,7 @@ export default function Chat() {
         if (myPayload) {
           // Use encryptor_id if present (for re-encrypted messages), otherwise fallback to senderId
           const effectiveSenderId = myPayload.encryptor_id || myPayload.encryptorId || senderId;
-          
+
           if (keys[effectiveSenderId]) {
             const text = await decryptMessage(
               {
@@ -162,9 +179,9 @@ export default function Chat() {
               },
               keys[effectiveSenderId]
             );
-            results.push({ 
-              ...msg, 
-              decrypted_text: text 
+            results.push({
+              ...msg,
+              decrypted_text: text
             });
           } else {
             results.push(msg);
@@ -289,7 +306,8 @@ export default function Chat() {
       const fileData = new Uint8Array(await file.arrayBuffer());
       const { encryptedBlob, keyPayloads } = encryptFile(fileData, recipients, secretKey);
       const { path } = await uploadFile(new Blob([encryptedBlob]), 'temp', id, file.name, recipients.length);
-      const msg = await sendMessage(id, 'file', JSON.stringify(keyPayloads), path);
+      const contentPayload = { filename: file.name, keys: keyPayloads };
+      const msg = await sendMessage(id, 'file', JSON.stringify(contentPayload), path);
 
       // Stop typing
       sendTyping(false);
@@ -316,8 +334,9 @@ export default function Chat() {
         return;
       }
 
-      // Parse the key payloads from message content
-      const payloads = JSON.parse(msg.content);
+      // Parse the key payloads from message content (new format: {filename, keys} or legacy array)
+      const parsed = JSON.parse(msg.content);
+      const payloads = Array.isArray(parsed) ? parsed : (parsed.keys || []);
       const myPayload = payloads.find(
         (p: any) => (p.recipient_id || p.recipientId) === user.id
       );
@@ -381,24 +400,28 @@ export default function Chat() {
         const targetPublicKey = await getPublicKey(targetUser.id);
 
         if (secretKey && targetPublicKey) {
-          // Re-encrypt all decryptable messages for the new user
+          // Re-encrypt all decryptable text messages for the new user
           for (const msg of displayMessages) {
-            if (msg.decrypted_text) {
-              const payloads = JSON.parse(msg.content);
+            if (msg.decrypted_text && msg.message_type !== 'file') {
+              const parsed = JSON.parse(msg.content);
+              const payloads = Array.isArray(parsed) ? parsed : (parsed.keys || []);
               const newPayload = encryptForRecipient(
                 msg.decrypted_text,
                 targetPublicKey.publicKeyB64,
                 secretKey,
                 user.id // We are the encryptor
               );
-              
+
               // Add recipient_id to match structure
               (newPayload as any).recipient_id = targetUser.id;
-              
+
               payloads.push(newPayload);
+              const updatedContent = Array.isArray(parsed)
+                ? JSON.stringify(payloads)
+                : JSON.stringify({ ...parsed, keys: payloads });
               reEncrypted.push({
                 messageId: msg.id,
-                content: JSON.stringify(payloads)
+                content: updatedContent,
               });
             }
           }
@@ -529,6 +552,7 @@ export default function Chat() {
           onTyping={handleTyping}
           conversationId={id!}
           members={conversation?.members || []}
+          uploading={uploading}
         />
       </div>
 

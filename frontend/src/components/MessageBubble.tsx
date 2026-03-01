@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 import { downloadFile } from '../api/files';
 import { decryptFile } from '../crypto/fileEncryption';
@@ -71,14 +71,6 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   const fileName = hasText?.match(/\[File:\s*(.+)\]/)?.[1] || '';
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName);
 
-  // Find sender public key from members
-  const findSenderPubKey = useCallback(() => {
-    const senderId = message.sender_id || message.sender?.id;
-    const senderMember = members.find((m: any) => (m.user?.id || m.user_id) === senderId);
-    // We can't get the key directly from members - it comes from parent
-    return senderId;
-  }, [message, members]);
-
   // Auto-decrypt image files for inline preview
   useEffect(() => {
     if (!isFile || !isImage || filePreviewUrl || fileDecrypting) return;
@@ -91,7 +83,8 @@ export default function MessageBubble({ message, isMine, senderName, members = [
         const secretKey = await getPrivateKey();
         if (!secretKey || cancelled) return;
 
-        const payloads = JSON.parse(message.content);
+        const parsed = JSON.parse(message.content);
+        const payloads = Array.isArray(parsed) ? parsed : (parsed.keys || []);
         const myPayload = payloads.find(
           (p: any) => (p.recipient_id || p.recipientId) === user.id
         );
@@ -128,7 +121,10 @@ export default function MessageBubble({ message, isMine, senderName, members = [
       }
     };
     decryptPreview();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    };
   }, [isFile, isImage, message.file_url, user?.id]);
   const memberNames = members.map((m: any) => m.user?.display_name || m.display_name || '').filter(Boolean);
   const currentUserName = profile?.display_name || '';

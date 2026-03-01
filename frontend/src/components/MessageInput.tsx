@@ -6,11 +6,12 @@ interface Props {
   onTyping?: () => void;
   conversationId: string;
   members?: any[];
+  uploading?: boolean;
 }
 
 const EMOJIS = ['😀', '😂', '😍', '👍', '🔥', '🙌', '🎉', '📚', '🎓', '💻', '🤔', '😎', '💯', '✨', '👋', '👀'];
 
-export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [] }: Props) {
+export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [], uploading = false }: Props) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
@@ -194,9 +195,11 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
               type="button"
               className="file-attach-btn"
               onClick={() => fileInputRef.current?.click()}
-              title="Attach file"
+              title={uploading ? 'Uploading...' : 'Attach file'}
+              disabled={uploading}
+              style={{ opacity: uploading ? 0.5 : 1 }}
             >
-              &#128206;
+              {uploading ? '⏳' : '\u{1F4CE}'}
             </button>
             <input
               ref={fileInputRef}
