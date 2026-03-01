@@ -8,9 +8,9 @@ import { useAuthStore } from '../store/auth';
 import { useMessageStore } from '../store/message';
 import { usePresenceStore } from '../store/presence';
 import { encryptForMultipleRecipients, decryptMessage, encryptForRecipient } from '../crypto/encryption';
-import { encryptFile } from '../crypto/fileEncryption';
+import { encryptFile, decryptFile } from '../crypto/fileEncryption';
 import { getPrivateKey } from '../crypto/keyManager';
-import { uploadFile } from '../api/files';
+import { uploadFile, downloadFile } from '../api/files';
 import type { Conversation } from '../types';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
@@ -261,13 +261,17 @@ export default function Chat() {
     }
   };
 
+  const [uploading, setUploading] = useState(false);
+
   const handleFileSelect = async (file: File) => {
     if (!id || !user || !conversation) return;
 
     const secretKey = await getPrivateKey();
-    if (!secretKey) return;
+    if (!secretKey) {
+      alert('Encryption key not found. Go to Settings to set up your E2EE keys.');
+      return;
+    }
 
-    const fileData = new Uint8Array(await file.arrayBuffer());
     const recipients = conversation.members
       .map((m: any) => {
         const uid = m.user?.id || m.user_id || m.user;
@@ -275,12 +279,18 @@ export default function Chat() {
       })
       .filter((r: any) => r.publicKeyB64);
 
-    const { encryptedBlob, keyPayloads } = encryptFile(fileData, recipients, secretKey);
+    if (recipients.length === 0) {
+      alert('No recipients with encryption keys found.');
+      return;
+    }
 
+    setUploading(true);
     try {
-      const { path } = await uploadFile(new Blob([encryptedBlob as any]), 'temp', id, file.name, recipients.length);
+      const fileData = new Uint8Array(await file.arrayBuffer());
+      const { encryptedBlob, keyPayloads } = encryptFile(fileData, recipients, secretKey);
+      const { path } = await uploadFile(new Blob([encryptedBlob]), 'temp', id, file.name, recipients.length);
       const msg = await sendMessage(id, 'file', JSON.stringify(keyPayloads), path);
-      
+
       // Stop typing
       sendTyping(false);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -288,8 +298,72 @@ export default function Chat() {
       const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
       addMessage(id, optimisticMsg);
       setDisplayMessages(prev => [...prev, optimisticMsg]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('File upload failed:', err);
+      alert(`File upload failed: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownloadFile = async (msg: any) => {
+    if (!user || !msg.file_url) return;
+
+    try {
+      const secretKey = await getPrivateKey();
+      if (!secretKey) {
+        alert('Encryption key not found. Go to Settings to set up your E2EE keys.');
+        return;
+      }
+
+      // Parse the key payloads from message content
+      const payloads = JSON.parse(msg.content);
+      const myPayload = payloads.find(
+        (p: any) => (p.recipient_id || p.recipientId) === user.id
+      );
+      if (!myPayload) {
+        alert('You do not have a decryption key for this file.');
+        return;
+      }
+
+      // Find the sender's public key
+      const senderId = msg.sender_id || msg.sender?.id;
+      const senderPubKey = memberKeys[senderId];
+      if (!senderPubKey) {
+        alert('Sender public key not found. Cannot decrypt file.');
+        return;
+      }
+
+      // Download encrypted blob
+      const encryptedBlob = await downloadFile(msg.file_url);
+      const encryptedData = new Uint8Array(await encryptedBlob.arrayBuffer());
+
+      // Decrypt
+      const decryptedData = decryptFile(encryptedData, myPayload, senderPubKey, secretKey);
+
+      // Extract original filename from decrypted_text or file_url
+      let filename = 'download';
+      if (msg.decrypted_text) {
+        const match = msg.decrypted_text.match(/\[File:\s*(.+)\]/);
+        if (match) filename = match[1];
+      } else {
+        const parts = msg.file_url.split('/');
+        filename = parts[parts.length - 1];
+      }
+
+      // Trigger browser download
+      const blob = new Blob([decryptedData]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('File download failed:', err);
+      alert(`Download failed: ${err?.message || 'Unknown error'}`);
     }
   };
 
@@ -408,12 +482,23 @@ export default function Chat() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                 {sharedFiles.map((msg: any) => (
-                  <div key={msg.id} style={{ background: 'var(--black)', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--black-border)', fontSize: '0.8rem' }}>
-                    {msg.decrypted_text || '[Encrypted File]'}
-                    <div style={{ fontSize: '0.65rem', color: 'var(--cream-dim)' }}>
-                      {new Date(msg.created_at).toLocaleDateString()}
+                  <button
+                    key={msg.id}
+                    className="file-card"
+                    onClick={() => handleDownloadFile(msg)}
+                    title="Click to decrypt &amp; download"
+                  >
+                    <div className="file-card-icon">&#128196;</div>
+                    <div className="file-card-info">
+                      <div className="file-card-name">
+                        {msg.decrypted_text?.match(/\[File:\s*(.+)\]/)?.[1] || 'Encrypted File'}
+                      </div>
+                      <div className="file-card-date">
+                        {new Date(msg.created_at).toLocaleDateString()}
+                      </div>
                     </div>
-                  </div>
+                    <div className="file-card-dl">&#8595;</div>
+                  </button>
                 ))}
               </div>
             )}

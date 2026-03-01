@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/auth';
+import { downloadFile } from '../api/files';
+import { decryptFile } from '../crypto/fileEncryption';
+import { getPrivateKey } from '../crypto/keyManager';
 
 interface MessageProps {
   message: any;
@@ -51,8 +54,10 @@ function parseMarkdown(text: string, memberNames: string[] = [], currentUserName
 export default function MessageBubble({ message, isMine, senderName, members = [] }: MessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [fileDecrypting, setFileDecrypting] = useState(false);
   const { profile, user } = useAuthStore();
-  
+
   const dateObj = new Date(message.created_at);
   const isToday = new Date().toDateString() === dateObj.toDateString();
   const time = dateObj.toLocaleTimeString([], {
@@ -62,6 +67,69 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   const dateStr = isToday ? '' : dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ';
 
   const hasText = message.decrypted_text || message.decryptedText;
+  const isFile = message.message_type === 'file' && message.file_url;
+  const fileName = hasText?.match(/\[File:\s*(.+)\]/)?.[1] || '';
+  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName);
+
+  // Find sender public key from members
+  const findSenderPubKey = useCallback(() => {
+    const senderId = message.sender_id || message.sender?.id;
+    const senderMember = members.find((m: any) => (m.user?.id || m.user_id) === senderId);
+    // We can't get the key directly from members - it comes from parent
+    return senderId;
+  }, [message, members]);
+
+  // Auto-decrypt image files for inline preview
+  useEffect(() => {
+    if (!isFile || !isImage || filePreviewUrl || fileDecrypting) return;
+    if (!user || !message.file_url || !message.content) return;
+
+    let cancelled = false;
+    const decryptPreview = async () => {
+      setFileDecrypting(true);
+      try {
+        const secretKey = await getPrivateKey();
+        if (!secretKey || cancelled) return;
+
+        const payloads = JSON.parse(message.content);
+        const myPayload = payloads.find(
+          (p: any) => (p.recipient_id || p.recipientId) === user.id
+        );
+        if (!myPayload) return;
+
+        // We need the sender's public key - get it from the members prop via getBatchPublicKeys
+        // For now, try to find the encryptor_id or sender
+        const senderId = myPayload.encryptor_id || myPayload.encryptorId || message.sender_id || message.sender?.id;
+
+        // Import getBatchPublicKeys to resolve the key
+        const { getBatchPublicKeys } = await import('../api/keys');
+        const keys = await getBatchPublicKeys([senderId]);
+        const senderKey = keys.find((k: any) => k.user === senderId);
+        if (!senderKey || cancelled) return;
+
+        const blob = await downloadFile(message.file_url);
+        if (cancelled) return;
+        const encData = new Uint8Array(await blob.arrayBuffer());
+        const decData = decryptFile(encData, myPayload, senderKey.publicKeyB64, secretKey);
+
+        // Guess MIME type from extension
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+        const mimeMap: Record<string, string> = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp',
+        };
+        const mime = mimeMap[ext] || 'application/octet-stream';
+        const url = URL.createObjectURL(new Blob([decData], { type: mime }));
+        if (!cancelled) setFilePreviewUrl(url);
+      } catch (err) {
+        console.error('Image preview decrypt failed:', err);
+      } finally {
+        if (!cancelled) setFileDecrypting(false);
+      }
+    };
+    decryptPreview();
+    return () => { cancelled = true; };
+  }, [isFile, isImage, message.file_url, user?.id]);
   const memberNames = members.map((m: any) => m.user?.display_name || m.display_name || '').filter(Boolean);
   const currentUserName = profile?.display_name || '';
 
@@ -126,29 +194,44 @@ export default function MessageBubble({ message, isMine, senderName, members = [
     <div className={`message-bubble ${isMine ? 'mine' : 'theirs'}`}>
       {!isMine && senderName && <div className="msg-sender">{senderName}</div>}
       <div className="msg-content">
-        {hasText ? (
+        {isFile && isImage && filePreviewUrl ? (
+          <div className="file-preview">
+            <img src={filePreviewUrl} alt={fileName} className="file-preview-img" />
+            <div className="file-preview-name">{fileName}</div>
+          </div>
+        ) : isFile && isImage && fileDecrypting ? (
+          <div className="file-loading">
+            <span className="file-loading-spinner"></span>
+            <span>Decrypting image...</span>
+          </div>
+        ) : isFile && hasText ? (
+          <div className="file-attachment">
+            <span className="file-attachment-icon">&#128196;</span>
+            <span className="file-attachment-name">{fileName || 'File'}</span>
+          </div>
+        ) : hasText ? (
           <>
             {isGif ? (
               <img src={gifUrl!} alt="GIF" className="gif-msg-img" />
             ) : (
-              <div 
+              <div
                 className="markdown-body"
                 dangerouslySetInnerHTML={{ __html: parseMarkdown(hasText, memberNames, currentUserName) }}
               />
             )}
-            
+
             {translatedText && (
               <div className="translated-text">
                 <span style={{ fontSize: '0.65rem', display: 'block', opacity: 0.6, marginBottom: '2px' }}>Translated:</span>
-                <div 
+                <div
                   className="markdown-body"
                   dangerouslySetInnerHTML={{ __html: parseMarkdown(translatedText) }}
                 />
               </div>
             )}
             {!isMine && !translatedText && !isTranslating && !isGif && (
-              <button 
-                className="translate-btn" 
+              <button
+                className="translate-btn"
                 onClick={handleTranslate}
               >
                 Translate
