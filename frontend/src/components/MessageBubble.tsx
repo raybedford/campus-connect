@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/auth';
-import { getFileUrl } from '../api/files';
+import { downloadFile, getFileUrl } from '../api/files';
+import { decryptFile } from '../crypto/fileEncryption';
+import { getPrivateKey } from '../crypto/keyManager';
 
 interface MessageProps {
   message: any;
   isMine: boolean;
   senderName?: string;
   members?: any[];
+  memberKeys?: Record<string, string>;
   onEdit?: (message: any) => void;
   onDelete?: (message: any) => void;
   onDeleteFile?: (message: any) => void;
@@ -52,11 +55,13 @@ function parseMarkdown(text: string, memberNames: string[] = [], currentUserName
   return html.replace(/\n/g, '<br />');
 }
 
-export default function MessageBubble({ message, isMine, senderName, members = [], onEdit, onDelete, onDeleteFile }: MessageProps) {
+export default function MessageBubble({ message, isMine, senderName, members = [], memberKeys = {}, onEdit, onDelete, onDeleteFile }: MessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [fileError, setFileError] = useState(false);
+  const objectUrlRef = useRef<string | null>(null);
   const { profile, user } = useAuthStore();
 
   const dateObj = new Date(message.created_at);
@@ -72,17 +77,63 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   const fileName = hasText?.match(/\[File:\s*(.+)\]/)?.[1] || '';
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName);
 
-  // Get signed URL for image files (no encryption — direct display)
+  // Get image preview: legacy encrypted files need download+decrypt, new files use signed URL
   useEffect(() => {
     if (!isFile || !isImage || filePreviewUrl) return;
     if (!message.file_url) return;
 
     let cancelled = false;
-    getFileUrl(message.file_url).then((url) => {
-      if (!cancelled && url) setFilePreviewUrl(url);
-    });
+
+    if (message._legacyEncrypted && message._legacyKeyPayload) {
+      // Legacy encrypted file: download blob, decrypt, create object URL
+      (async () => {
+        try {
+          const blob = await downloadFile(message.file_url);
+          const encryptedData = new Uint8Array(await blob.arrayBuffer());
+          const secretKey = await getPrivateKey();
+          const senderPubKey = memberKeys[message._legacySenderId || message.sender_id];
+
+          if (!secretKey || !senderPubKey) {
+            if (!cancelled) setFileError(true);
+            return;
+          }
+
+          const decryptedData = decryptFile(
+            encryptedData,
+            message._legacyKeyPayload,
+            senderPubKey,
+            secretKey
+          );
+
+          if (!cancelled) {
+            const url = URL.createObjectURL(new Blob([decryptedData]));
+            objectUrlRef.current = url;
+            setFilePreviewUrl(url);
+          }
+        } catch (err) {
+          console.error('Legacy file decryption failed:', err);
+          if (!cancelled) setFileError(true);
+        }
+      })();
+    } else {
+      // New format: direct signed URL
+      getFileUrl(message.file_url).then((url) => {
+        if (!cancelled && url) setFilePreviewUrl(url);
+        else if (!cancelled) setFileError(true);
+      });
+    }
+
     return () => { cancelled = true; };
-  }, [isFile, isImage, message.file_url]);
+  }, [isFile, isImage, message.file_url, message._legacyEncrypted]);
+
+  // Cleanup blob object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+    };
+  }, []);
 
   const memberNames = members.map((m: any) => m.user?.display_name || m.display_name || '').filter(Boolean);
   const currentUserName = profile?.display_name || '';
@@ -214,10 +265,10 @@ export default function MessageBubble({ message, isMine, senderName, members = [
             <img src={filePreviewUrl} alt={fileName} className="file-preview-img" />
             <div className="file-preview-name">{fileName}</div>
           </div>
-        ) : isFile && isImage && !filePreviewUrl ? (
+        ) : isFile && isImage && !filePreviewUrl && !fileError ? (
           <div className="file-loading">
             <span className="file-loading-spinner"></span>
-            <span>Loading image...</span>
+            <span>{message._legacyEncrypted ? 'Decrypting image...' : 'Loading image...'}</span>
           </div>
         ) : isFile && hasText ? (
           <div className="file-attachment">

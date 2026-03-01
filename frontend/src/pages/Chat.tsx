@@ -10,6 +10,7 @@ import { usePresenceStore } from '../store/presence';
 import { encryptForMultipleRecipients, decryptMessage, encryptForRecipient } from '../crypto/encryption';
 import { getPrivateKey } from '../crypto/keyManager';
 import { uploadFile, downloadFile, deleteFile } from '../api/files';
+import { decryptFile } from '../crypto/fileEncryption';
 import type { Conversation } from '../types';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
@@ -166,20 +167,42 @@ export default function Chat() {
           continue;
         }
 
-        // File messages: don't decrypt key payloads as text — just extract filename
+        // File messages: extract filename and detect legacy encrypted format
         if (msg.message_type === 'file') {
           let filename = 'File';
+          let isLegacyEncrypted = false;
+          let legacyKeyPayload = null;
+          const legacySenderId = msg.sender_id || msg.sender?.id;
           try {
             const parsed = JSON.parse(msg.content);
             if (parsed.filename) {
               filename = parsed.filename;
+            }
+            // Detect legacy encrypted format (has keys array)
+            if (parsed.keys && Array.isArray(parsed.keys)) {
+              isLegacyEncrypted = true;
+              legacyKeyPayload = parsed.keys.find(
+                (k: any) => (k.recipientId || k.recipient_id) === user?.id
+              );
             } else if (Array.isArray(parsed)) {
-              // Old format (no filename) — try to get extension from file_url
-              const ext = msg.file_url?.split('.').pop() || '';
-              filename = ext ? `file.${ext}` : 'File';
+              // Very old format: entire content is array of key payloads
+              isLegacyEncrypted = true;
+              legacyKeyPayload = parsed.find(
+                (k: any) => (k.recipientId || k.recipient_id) === user?.id
+              );
+              if (!filename || filename === 'File') {
+                const ext = msg.file_url?.split('.').pop() || '';
+                filename = ext ? `file.${ext}` : 'File';
+              }
             }
           } catch {}
-          results.push({ ...msg, decrypted_text: `[File: ${filename}]` });
+          results.push({
+            ...msg,
+            decrypted_text: `[File: ${filename}]`,
+            _legacyEncrypted: isLegacyEncrypted,
+            _legacyKeyPayload: legacyKeyPayload,
+            _legacySenderId: legacySenderId,
+          });
           continue;
         }
 
@@ -415,8 +438,25 @@ export default function Chat() {
     if (!user || !msg.file_url) return;
 
     try {
-      // Download raw file (no decryption needed)
       const blob = await downloadFile(msg.file_url);
+      let downloadBlob = blob;
+
+      // Legacy encrypted file: decrypt before download
+      if (msg._legacyEncrypted && msg._legacyKeyPayload) {
+        const encryptedData = new Uint8Array(await blob.arrayBuffer());
+        const secretKey = await getPrivateKey();
+        const senderPubKey = memberKeys[msg._legacySenderId || msg.sender_id];
+
+        if (secretKey && senderPubKey) {
+          const decryptedData = decryptFile(
+            encryptedData,
+            msg._legacyKeyPayload,
+            senderPubKey,
+            secretKey
+          );
+          downloadBlob = new Blob([decryptedData]);
+        }
+      }
 
       // Extract original filename
       let filename = 'download';
@@ -429,7 +469,7 @@ export default function Chat() {
       }
 
       // Trigger browser download
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(downloadBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
@@ -606,6 +646,7 @@ export default function Chat() {
               isMine={(msg.sender_id || msg.sender?.id || msg.sender) === user?.id}
               senderName={msg.sender?.display_name || 'User'}
               members={conversation?.members || EMPTY_ARRAY}
+              memberKeys={memberKeys}
               onEdit={(m) => setEditingMessage(m)}
               onDelete={handleDeleteMessage}
               onDeleteFile={handleDeleteFileMessage}
