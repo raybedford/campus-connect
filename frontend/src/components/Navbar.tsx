@@ -120,10 +120,12 @@ export default function Navbar() {
                                     <div className="notif-item-title">
                                       {n.isGroup ? n.conversationLabel : n.senderName}
                                     </div>
-                                    <div className="notif-item-body">
-                                      {n.isGroup
-                                        ? `${n.senderName} sent a message`
-                                        : 'Sent you a new message'}
+                                    <div className={`notif-item-body ${n.isMention ? 'notif-mention' : ''}`}>
+                                      {n.isMention
+                                        ? `${n.senderName} mentioned you`
+                                        : n.isGroup
+                                          ? `${n.senderName} sent a message`
+                                          : 'Sent you a new message'}
                                     </div>
                                   </button>
                                 ))}

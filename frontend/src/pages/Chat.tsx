@@ -219,7 +219,7 @@ export default function Chat() {
     };
   }, [id]);
 
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, mentionedUserIds?: string[]) => {
     if (!id || !user || !conversation) return;
 
     const secretKey = await getPrivateKey();
@@ -232,7 +232,7 @@ export default function Chat() {
           return { userId: uid, publicKeyB64: memberKeys[uid] };
         })
         .filter((r: any) => r.publicKeyB64);
-      
+
       payloads = encryptForMultipleRecipients(text, recipients, secretKey);
     } else {
       payloads = (conversation?.members || []).map((m: any) => {
@@ -246,8 +246,8 @@ export default function Chat() {
     }
 
     try {
-      const msg = await sendMessage(id, 'text', JSON.stringify(payloads));
-      
+      const msg = await sendMessage(id, 'text', JSON.stringify(payloads), undefined, mentionedUserIds);
+
       // Stop typing indicator immediately on send
       sendTyping(false);
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
@@ -438,11 +438,12 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
-        <MessageInput 
-          onSend={handleSend} 
-          onFileSelect={handleFileSelect} 
+        <MessageInput
+          onSend={handleSend}
+          onFileSelect={handleFileSelect}
           onTyping={handleTyping}
-          conversationId={id!} 
+          conversationId={id!}
+          members={conversation?.members || []}
         />
       </div>
 

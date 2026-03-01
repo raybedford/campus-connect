@@ -52,6 +52,7 @@ CREATE TABLE messages (
   content TEXT, -- Can be encrypted JSON blob
   message_type TEXT DEFAULT 'text', -- 'text', 'image', 'file'
   file_url TEXT, -- For attachments
+  mentioned_user_ids UUID[] DEFAULT '{}', -- @mentioned user IDs (unencrypted metadata)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

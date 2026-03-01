@@ -62,6 +62,7 @@ export interface Message {
   content: string;
   message_type: 'text' | 'file';
   file_url?: string;
+  mentioned_user_ids?: string[];
   created_at: string;
   sender?: Profile;
   encrypted_payloads?: EncryptedPayload[];

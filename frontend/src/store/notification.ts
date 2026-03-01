@@ -6,6 +6,7 @@ interface NotificationItem {
   senderName: string;
   conversationLabel: string;
   isGroup: boolean;
+  isMention?: boolean;
   timestamp: number;
 }
 

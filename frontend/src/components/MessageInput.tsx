@@ -1,29 +1,46 @@
 import { useRef, useState, useCallback } from 'react';
 
 interface Props {
-  onSend: (text: string) => void;
+  onSend: (text: string, mentionedUserIds?: string[]) => void;
   onFileSelect?: (file: File) => void;
   onTyping?: () => void;
   conversationId: string;
+  members?: any[];
 }
 
 const EMOJIS = ['😀', '😂', '😍', '👍', '🔥', '🙌', '🎉', '📚', '🎓', '💻', '🤔', '😎', '💯', '✨', '👋', '👀'];
 
-export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _ }: Props) {
+export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [] }: Props) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [gifQuery, setGifQuery] = useState('');
   const [gifs, setGifs] = useState<any[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionStartPos, setMentionStartPos] = useState(0);
+  const mentionedUsersRef = useRef<{ id: string; name: string }[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const gifDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const filteredMembers = mentionQuery !== null
+    ? members.filter((m) => {
+        const name = m.user?.display_name || m.display_name || '';
+        return name.toLowerCase().includes(mentionQuery.toLowerCase());
+      }).slice(0, 6)
+    : [];
+
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (mentionQuery !== null && filteredMembers.length > 0) return; // let Enter select mention
     const trimmed = text.trim();
     if (!trimmed) return;
-    onSend(trimmed);
+    const ids = mentionedUsersRef.current.map((u) => u.id);
+    onSend(trimmed, ids.length > 0 ? ids : undefined);
     setText('');
+    mentionedUsersRef.current = [];
+    setMentionQuery(null);
     setShowEmoji(false);
     setShowGif(false);
   };
@@ -59,13 +76,79 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
     setText(prev => prev + emoji);
   };
 
+  const checkForMention = (value: string, cursorPos: number) => {
+    const before = value.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx >= 0 && (atIdx === 0 || before[atIdx - 1] === ' ')) {
+      const query = before.slice(atIdx + 1);
+      setMentionQuery(query);
+      setMentionStartPos(atIdx);
+      setMentionIndex(0);
+      return;
+    }
+    setMentionQuery(null);
+  };
+
+  const selectMention = (member: any) => {
+    const name = member.user?.display_name || member.display_name || '';
+    const userId = member.user?.id || member.user_id || member.id;
+    const before = text.slice(0, mentionStartPos);
+    const cursorPos = inputRef.current?.selectionStart || text.length;
+    const after = text.slice(cursorPos);
+    const newText = `${before}@${name} ${after}`;
+    setText(newText);
+    if (!mentionedUsersRef.current.some((u) => u.id === userId)) {
+      mentionedUsersRef.current.push({ id: userId, name });
+    }
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  };
+
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setText(e.target.value);
     if (onTyping) onTyping();
+    const cursorPos = e.target.selectionStart || e.target.value.length;
+    checkForMention(e.target.value, cursorPos);
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionQuery !== null && filteredMembers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % filteredMembers.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + filteredMembers.length) % filteredMembers.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        selectMention(filteredMembers[mentionIndex]);
+      } else if (e.key === 'Escape') {
+        setMentionQuery(null);
+      }
+    }
   };
 
   return (
     <div className="chat-input-wrapper" style={{ position: 'relative' }}>
+      {mentionQuery !== null && filteredMembers.length > 0 && (
+        <div className="mention-dropdown">
+          {filteredMembers.map((m, i) => {
+            const name = m.user?.display_name || m.display_name || '';
+            const email = m.user?.email || m.email || '';
+            return (
+              <button
+                key={m.user?.id || m.user_id || m.id}
+                className={`mention-item ${i === mentionIndex ? 'active' : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); selectMention(m); }}
+              >
+                <span className="mention-item-name">@{name}</span>
+                <span className="mention-item-email">{email}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {showEmoji && (
         <div className="picker-container">
           <div className="emoji-grid">
@@ -128,10 +211,12 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
           </>
         )}
         <input
+          ref={inputRef}
           type="text"
           value={text}
           onChange={handleTextChange}
-          placeholder="Type a message..."
+          onKeyDown={handleInputKeyDown}
+          placeholder="Type a message... (@ to mention)"
         />
         <button type="submit" className="send-btn" disabled={!text.trim()}>
           Send

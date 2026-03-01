@@ -29,20 +29,26 @@ export async function sendMessage(
   conversationId: string,
   messageType: string,
   content: string,
-  fileUrl?: string
+  fileUrl?: string,
+  mentionedUserIds?: string[]
 ): Promise<Message> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  const row: Record<string, any> = {
+    conversation_id: conversationId,
+    sender_id: user.id,
+    message_type: messageType,
+    content: content,
+    file_url: fileUrl,
+  };
+  if (mentionedUserIds && mentionedUserIds.length > 0) {
+    row.mentioned_user_ids = mentionedUserIds;
+  }
+
   const { data, error } = await supabase
     .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_id: user.id,
-      message_type: messageType,
-      content: content,
-      file_url: fileUrl
-    })
+    .insert(row)
     .select()
     .single();
 

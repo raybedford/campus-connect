@@ -83,6 +83,10 @@ export function useNotifications() {
             }
           }
 
+          // Check if current user was @mentioned
+          const mentionedIds: string[] = msg.mentioned_user_ids || [];
+          const isMention = mentionedIds.includes(user.id);
+
           // Add to in-app notification store (bell icon)
           useNotificationStore.getState().addNotification({
             id: msg.id,
@@ -90,15 +94,18 @@ export function useNotifications() {
             senderName,
             conversationLabel,
             isGroup: convInfo?.type === 'group',
+            isMention,
             timestamp: Date.now(),
           });
 
           // Show browser notification if permission granted
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             const title = convInfo?.type === 'group' ? conversationLabel : senderName;
-            const body = convInfo?.type === 'group'
-              ? `${senderName} sent a message`
-              : 'Sent you a new message';
+            const body = isMention
+              ? `${senderName} mentioned you`
+              : convInfo?.type === 'group'
+                ? `${senderName} sent a message`
+                : 'Sent you a new message';
 
             const notification = new Notification(title, {
               body,

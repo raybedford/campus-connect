@@ -8,8 +8,8 @@ interface MessageProps {
   members?: any[];
 }
 
-// Simple Markdown Parser for bold, italics, and code
-function parseMarkdown(text: string) {
+// Simple Markdown Parser for bold, italics, code, and @mentions
+function parseMarkdown(text: string, memberNames: string[] = [], currentUserName?: string) {
   // 0. Escape HTML to prevent XSS
   let html = text
     .replace(/&/g, '&amp;')
@@ -20,17 +20,29 @@ function parseMarkdown(text: string) {
 
   // 1. Code blocks: ```code```
   html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-  
+
   // 2. Inline code: `code`
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  
+
   // 3. Bold: **text** or __text__
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-  
+
   // 4. Italics: *text* or _text_
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+  // 5. @mentions: match @MemberName against known member names (longest first)
+  const sorted = [...memberNames].sort((a, b) => b.length - a.length);
+  for (const name of sorted) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const isMe = currentUserName && name === currentUserName;
+    const cls = isMe ? 'mention mention-me' : 'mention';
+    html = html.replace(
+      new RegExp(`@${escaped}(?=\\s|$|[.,!?;:])`, 'g'),
+      `<span class="${cls}">@${name}</span>`
+    );
+  }
 
   // Handle newlines
   return html.replace(/\n/g, '<br />');
@@ -50,6 +62,8 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   const dateStr = isToday ? '' : dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ';
 
   const hasText = message.decrypted_text || message.decryptedText;
+  const memberNames = members.map((m: any) => m.user?.display_name || m.display_name || '').filter(Boolean);
+  const currentUserName = profile?.display_name || '';
 
   // Read status logic
   const getReadStatus = () => {
@@ -119,7 +133,7 @@ export default function MessageBubble({ message, isMine, senderName, members = [
             ) : (
               <div 
                 className="markdown-body"
-                dangerouslySetInnerHTML={{ __html: parseMarkdown(hasText) }}
+                dangerouslySetInnerHTML={{ __html: parseMarkdown(hasText, memberNames, currentUserName) }}
               />
             )}
             
