@@ -61,11 +61,6 @@
     text-indent: 0;
     line-height: 2;
   }
-  .running-head {
-    font-size: 12pt;
-    text-align: left;
-    margin-bottom: 24pt;
-  }
   .page-break {
     page-break-before: always;
   }
@@ -77,14 +72,23 @@
     line-height: 1.5;
   }
   th, td {
-    border: 1px solid #000;
+    border-top: none;
+    border-bottom: 1px solid #000;
+    border-left: none;
+    border-right: none;
     padding: 6px 10px;
     text-align: left;
     vertical-align: top;
   }
+  thead tr:first-child th {
+    border-top: 2px solid #000;
+    border-bottom: 1px solid #000;
+  }
+  tbody tr:last-child td {
+    border-bottom: 2px solid #000;
+  }
   th {
     font-weight: bold;
-    background: #f0f0f0;
   }
   pre {
     font-family: 'Courier New', Courier, monospace;
@@ -103,7 +107,7 @@
     text-align: left;
     text-indent: 0;
     margin: 6pt 0 12pt 0;
-    font-size: 11pt;
+    font-size: 12pt;
   }
   .figure-label {
     font-weight: bold;
@@ -119,6 +123,12 @@
   .keywords {
     text-indent: 0.5in;
     font-style: italic;
+  }
+  .table-note {
+    text-indent: 0;
+    font-size: 10pt;
+    font-style: italic;
+    line-height: 1.8;
   }
 </style>
 </head>
@@ -137,7 +147,7 @@
 <!-- ABSTRACT -->
 <div class="page-break"></div>
 <h1>Abstract</h1>
-<p class="abstract no-indent">This document presents the design and architecture of CampusConnect, a secure messaging application built for university students. The platform employs end-to-end encryption (E2EE) using the NaCl cryptographic library to ensure that message content remains confidential and inaccessible to server-side systems (Bernstein et al., 2012). The application restricts registration to verified <code>.edu</code> email addresses, automatically detects institutional affiliation, and provides real-time messaging with features including group conversations, file sharing, typing indicators, and automatic translation. This document covers the system architecture, use case analysis, visual interface design, and data management strategy. The design follows established software engineering principles including separation of concerns, defense in depth, and the principle of least privilege (Sommerville, 2015).</p>
+<p class="abstract no-indent">CampusConnect is a messaging application I built for university students that uses end-to-end encryption so the server never sees what anyone types. The app only lets people sign up with .edu emails, which ties each user to their school automatically. Once signed up, students can send messages, share files, create group chats, and see who is online &mdash; all through a real-time interface. The encryption piece uses a library called NaCl, which handles both the asymmetric key exchange and the symmetric file encryption (Bernstein et al., 2012). On the backend, everything runs through Supabase, which gives me a PostgreSQL database, authentication, real-time websockets, and file storage without having to manage my own servers. This document walks through the system architecture and its major components, four detailed use cases with workflow diagrams, the visual design for both mobile and desktop screens, and the data management strategy including the full database schema and row-level security setup.</p>
 <p class="keywords">Keywords: end-to-end encryption, messaging, NaCl, Supabase, React, university, software design</p>
 
 <!-- BODY -->
@@ -147,13 +157,15 @@
 <h1>System Architecture</h1>
 
 <h2>Overview</h2>
-<p>CampusConnect is a single-page web application that follows a client-server architecture with a Backend-as-a-Service (BaaS) model. The frontend is built with React 19 and TypeScript, while the backend leverages Supabase, an open-source alternative to Firebase that provides authentication, a PostgreSQL database, real-time subscriptions, and file storage (Supabase, 2024). A critical architectural decision is that all encryption and decryption occurs exclusively on the client side, ensuring that the server never has access to plaintext message content. This zero-knowledge architecture aligns with the principles outlined by Ermoshina et al. (2016) in their analysis of secure messaging protocols.</p>
+<p>The idea behind CampusConnect is straightforward: give college students a way to message each other securely without trusting the server with their conversations. I went with a single-page application using React 19 and TypeScript on the frontend, and Supabase as the backend. Supabase is essentially an open-source Firebase alternative that bundles together PostgreSQL, auth, realtime subscriptions, and file storage (Supabase, 2024). It saved me from standing up separate services for each of those things.</p>
 
-<p>The system follows a three-tier architecture consisting of the presentation layer (React components), the business logic layer (encryption engine, state management, and API services), and the data layer (Supabase PostgreSQL with Row-Level Security). According to Bass et al. (2012), this separation of concerns enables independent evolution of each layer while maintaining system integrity.</p>
+<p>The part that makes this different from a standard chat app is that all encryption and decryption happens in the browser. The server stores ciphertext and has no way to read it. Ermoshina et al. (2016) call this a "zero-knowledge architecture" because even a compromised backend cannot expose message content (p. 12). That constraint shaped a lot of my design decisions &mdash; for example, the server-side translation feature has to run after decryption on the client, not as a server middleware.</p>
+
+<p>Structurally, the app follows a three-tier pattern. The presentation layer is React components. The middle layer handles encryption, state management with Zustand, and API calls. The data layer is Supabase PostgreSQL with Row-Level Security policies controlling who can read and write what. Bass et al. (2012) argue that keeping these layers separate lets you change one without breaking the others, and that has held true &mdash; I was able to swap out the notification system without touching the encryption layer at all.</p>
 
 <h2>High-Level Architecture Diagram</h2>
 <p class="no-indent"><span class="figure-label">Figure 1</span></p>
-<p class="figure-caption">System Architecture Showing the Three-Tier Design and Data Flow</p>
+<p class="figure-caption">Three-Tier System Architecture and Data Flow</p>
 <pre>
                           +----------------------------+
                           |       STUDENT USER         |
@@ -194,31 +206,35 @@
 </pre>
 
 <h2>Major Application Components</h2>
-<p>The application is organized into nine major functional components. Table 1 summarizes each component, its purpose, and the key technologies employed.</p>
+<p>I broke the app down into nine components. Some of these, like the messaging engine and encryption layer, are tightly coupled by necessity &mdash; you cannot send a message without encrypting it first. Others, like translation and notifications, are more loosely attached and could be removed without breaking core functionality.</p>
 
 <p class="no-indent"><span class="figure-label">Table 1</span></p>
 <p class="figure-caption">Major Application Components and Technologies</p>
 <table>
-  <tr><th>Component</th><th>Purpose</th><th>Key Technologies</th></tr>
-  <tr><td>Authentication</td><td>User registration, login, password reset, and email verification. Restricts access to .edu emails.</td><td>Supabase Auth (GoTrue), JWT</td></tr>
-  <tr><td>Messaging Engine</td><td>Send and receive encrypted text messages and files in real-time across DMs and group chats.</td><td>Supabase Realtime, Zustand</td></tr>
-  <tr><td>E2EE Crypto Layer</td><td>Client-side encryption and decryption of all message content and files. Private keys never leave the device.</td><td>TweetNaCl.js (NaCl Box, Secretbox), IndexedDB</td></tr>
-  <tr><td>School Directory</td><td>Browse and search verified students within the same university.</td><td>Supabase RLS, PostgreSQL</td></tr>
-  <tr><td>Presence &amp; Typing</td><td>Real-time online/offline indicators and typing status within conversations.</td><td>Supabase Broadcast + Presence</td></tr>
-  <tr><td>File Sharing</td><td>Encrypted file uploads with per-recipient key wrapping.</td><td>NaCl Secretbox, Supabase Storage</td></tr>
-  <tr><td>Translation</td><td>Automatic translation of incoming messages based on user preference.</td><td>MyMemory Translation API</td></tr>
-  <tr><td>School Detection</td><td>Auto-detects university from email domain on signup.</td><td>PostgreSQL trigger function</td></tr>
-  <tr><td>Notifications</td><td>In-app notification bell and browser notifications for new messages.</td><td>Web Notifications API, Supabase Realtime</td></tr>
+  <thead>
+    <tr><th>Component</th><th>Purpose</th><th>Key Technologies</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Authentication</td><td>Registration, login, password reset, and email verification. Only .edu emails allowed.</td><td>Supabase Auth (GoTrue), JWT</td></tr>
+    <tr><td>Messaging Engine</td><td>Send and receive encrypted text in real-time across DMs and group chats.</td><td>Supabase Realtime, Zustand</td></tr>
+    <tr><td>E2EE Crypto Layer</td><td>Client-side encrypt/decrypt for all messages and files. Private keys stay on device.</td><td>TweetNaCl.js (NaCl Box, Secretbox), IndexedDB</td></tr>
+    <tr><td>School Directory</td><td>Browse and search verified students at the same university.</td><td>Supabase RLS, PostgreSQL</td></tr>
+    <tr><td>Presence &amp; Typing</td><td>Show who is online and who is currently typing in a conversation.</td><td>Supabase Broadcast + Presence</td></tr>
+    <tr><td>File Sharing</td><td>Encrypted file uploads with per-recipient key wrapping.</td><td>NaCl Secretbox, Supabase Storage</td></tr>
+    <tr><td>Translation</td><td>Auto-translate incoming messages based on the user's language preference.</td><td>MyMemory Translation API</td></tr>
+    <tr><td>School Detection</td><td>Auto-detect university from email domain during signup.</td><td>PostgreSQL trigger function</td></tr>
+    <tr><td>Notifications</td><td>In-app bell icon and browser push alerts for new messages.</td><td>Web Notifications API, Supabase Realtime</td></tr>
+  </tbody>
 </table>
 
 <h1>Use Case Analysis</h1>
 
 <h2>Actors</h2>
-<p>The system recognizes two primary actors. The <strong>Student</strong> is the primary user: a verified university student with a .edu email who interacts with the system to send messages, manage conversations, share files, and configure settings. The <strong>System</strong> represents backend automation that handles school detection, profile creation, real-time message delivery, encryption key generation, and translation services.</p>
+<p>There are really only two actors in the system. The <strong>Student</strong> is anyone with a verified .edu email &mdash; they send messages, create conversations, share files, and manage their settings. The <strong>System</strong> handles the automated stuff that happens behind the scenes: detecting which school someone belongs to, creating their profile, generating encryption keys, delivering messages in real-time, and sending notifications.</p>
 
 <h2>Use Case Diagram</h2>
 <p class="no-indent"><span class="figure-label">Figure 2</span></p>
-<p class="figure-caption">Use Case Diagram Showing Student and System Interactions</p>
+<p class="figure-caption">Use Case Diagram for Student and System Interactions</p>
 <pre>
   +------------------------------------------------------------------+
   |                         CAMPUSCONNECT                            |
@@ -261,21 +277,25 @@
 <h2>Detailed Use Cases</h2>
 
 <h3>Use Case 1: Send Encrypted Message</h3>
-<p>This use case describes the core messaging functionality. When a student sends a message, the system "encrypts the plaintext using the recipient's public key combined with the sender's private key through the NaCl Box construction" (Bernstein et al., 2012, p. 5). The ciphertext is then stored on the server, where it remains unreadable to any party that does not possess the corresponding private key.</p>
+<p>This is the core of the whole application. When a student hits Send, the browser grabs the recipient's public key from the database, then uses NaCl Box to combine that public key with the sender's private key and produce a ciphertext (Bernstein et al., 2012). That ciphertext goes to the server, where it sits unreadable. On the other end, the recipient's browser does the reverse &mdash; their private key plus the sender's public key decrypts it back to plaintext. The server is just a relay; it never knows what the message says.</p>
 
 <p class="no-indent"><span class="figure-label">Table 2</span></p>
-<p class="figure-caption">Use Case Specification for Send Encrypted Message</p>
+<p class="figure-caption">Use Case Specification: Send Encrypted Message</p>
 <table>
-  <tr><th>Field</th><th>Detail</th></tr>
-  <tr><td>Use Case ID</td><td>UC-1</td></tr>
-  <tr><td>Name</td><td>Send Encrypted Message</td></tr>
-  <tr><td>Actor</td><td>Student</td></tr>
-  <tr><td>Preconditions</td><td>Student is authenticated, has an E2EE keypair, and is a member of the target conversation.</td></tr>
-  <tr><td>Trigger</td><td>Student types a message and presses Send.</td></tr>
+  <thead>
+    <tr><th>Field</th><th>Detail</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Use Case ID</td><td>UC-1</td></tr>
+    <tr><td>Name</td><td>Send Encrypted Message</td></tr>
+    <tr><td>Actor</td><td>Student</td></tr>
+    <tr><td>Preconditions</td><td>Student is logged in, has an E2EE keypair, and belongs to the conversation.</td></tr>
+    <tr><td>Trigger</td><td>Student types a message and taps Send.</td></tr>
+  </tbody>
 </table>
 
 <p class="no-indent"><span class="figure-label">Figure 3</span></p>
-<p class="figure-caption">Workflow Diagram for Sending an Encrypted Message</p>
+<p class="figure-caption">Workflow: Sending an Encrypted Message</p>
 <pre>
   STUDENT A (Sender)           ENCRYPTION ENGINE           SUPABASE              STUDENT B (Recipient)
   ------------------           -----------------           --------              ---------------------
@@ -337,15 +357,15 @@
   +---------------+
 </pre>
 
-<p><strong>Main Flow:</strong> (1) Student navigates to a conversation. (2) System loads and decrypts prior messages. (3) Student types a message. (4) System broadcasts a typing indicator. (5) Student presses Send. (6) System fetches recipient public keys. (7) System encrypts the message for each recipient using NaCl Box. (8) System stores the encrypted payload in the messages table. (9) Supabase Realtime pushes the event to all members. (10) Each recipient decrypts using their private key. (11) Conversation timestamp is updated via trigger.</p>
+<p><strong>Main Flow:</strong> (1) Student opens a conversation. (2) Prior messages are loaded and decrypted. (3) Student types, which triggers a typing indicator broadcast. (4) Student presses Send. (5) The browser fetches the recipient's public key. (6) NaCl Box encrypts the message for each recipient. (7) The ciphertext is inserted into the messages table. (8) Supabase Realtime pushes the new row to all conversation members. (9) Each recipient's browser decrypts it locally. (10) A database trigger updates the conversation timestamp.</p>
 
-<p><strong>Postconditions:</strong> The message is stored encrypted in the database, all online recipients see the decrypted message in real-time, and the conversation timestamp is updated.</p>
+<p><strong>Postconditions:</strong> Encrypted message stored in database. Online recipients see decrypted text in real-time. Conversation timestamp updated.</p>
 
 <h3>Use Case 2: Register and Join School</h3>
-<p>The registration process demonstrates the system's automated school detection capability. As Sommerville (2015) notes, "trigger-based automation reduces the burden on users while maintaining data integrity" (p. 234). The handle_new_user() PostgreSQL trigger function parses the email domain, strips common institutional prefixes, and either creates or retrieves the associated school record.</p>
+<p>Registration is where a lot of the automation kicks in. The student fills out a form with their name, .edu email, and a password. If the email does not end in .edu, the frontend blocks the submission immediately. Assuming it passes, Supabase Auth creates the user, which fires a PostgreSQL trigger called handle_new_user(). That trigger function pulls the domain out of the email, strips common subdomains like "student." or "mail.", and looks up whether a school record already exists. If not, it creates one and even fetches a logo from Clearbit. Then it creates the student's profile linked to that school. All of this happens in a single database transaction (Sommerville, 2015).</p>
 
 <p class="no-indent"><span class="figure-label">Figure 4</span></p>
-<p class="figure-caption">Workflow Diagram for User Registration and School Detection</p>
+<p class="figure-caption">Workflow: User Registration and Automatic School Detection</p>
 <pre>
   STUDENT                     AUTH SERVICE              DATABASE TRIGGER            DATABASE
   -------                     ------------              ----------------            --------
@@ -373,7 +393,8 @@
           |                   +---------------------------+
           |                   | Extract email domain      |
           |                   | student.coloradotech.edu  |
-          |                   | --> ctuonline.edu          |
+          |                   | Strip "student." prefix   |
+          |                   | Map to --> ctuonline.edu  |
           |                   +-----------+---------------+
           |                               |
           |                               v
@@ -407,22 +428,21 @@
           |                                                      | IndexedDB       |
           |                                                      |                 |
           |                                                      | Public key -->  |
-          |                                              ------->| Server          |
           |                                                      +-----------------+
   +---------------+
   | APP READY     |
   +---------------+
 </pre>
 
-<p><strong>Main Flow:</strong> (1) Student enters name, .edu email, and password. (2) System validates the .edu domain. (3) Supabase Auth creates the user. (4) Database trigger extracts the domain and maps it to a school. (5) Trigger creates a profile linked to the school. (6) Verification email is sent. (7) Student verifies and logs in. (8) System generates an E2EE keypair and publishes the public key.</p>
+<p><strong>Main Flow:</strong> (1) Student fills out the signup form with their .edu email. (2) Frontend validates the domain. (3) Supabase Auth creates the user record. (4) The handle_new_user() trigger parses the domain, strips prefixes, and resolves the school. (5) Trigger creates a profile row linked to the school. (6) Supabase sends a verification email. (7) Student clicks the link and logs in. (8) The app generates an E2EE keypair &mdash; private key stays in IndexedDB, public key gets uploaded to the server.</p>
 
-<p><strong>Postconditions:</strong> The student has an auth.users entry, a profiles row, a school association, and a published E2EE keypair.</p>
+<p><strong>Postconditions:</strong> Student has an auth record, a profile, a school association, and a published public key ready for encrypted messaging.</p>
 
 <h3>Use Case 3: Create Group Conversation</h3>
-<p>Group conversations extend the messaging model to support multi-party communication. The system enforces school-scoped visibility through Row-Level Security policies, ensuring that "data access is controlled at the database level rather than relying solely on application logic" (Supabase, 2024, Security section).</p>
+<p>Group chats work a lot like DMs but with more members and an admin role. The student taps the "+" button, picks "Group," and searches for classmates. The directory only shows students from the same school thanks to Row-Level Security &mdash; Supabase (2024) handles this at the database level so the app code does not need to filter manually. After selecting two or more people, the student creates the group. The system inserts a conversation record, adds each person as a member, and the conversation shows up in everyone's list through a Realtime subscription.</p>
 
 <p class="no-indent"><span class="figure-label">Figure 5</span></p>
-<p class="figure-caption">Workflow Diagram for Creating a Group Conversation</p>
+<p class="figure-caption">Workflow: Creating a Group Conversation</p>
 <pre>
   STUDENT                                        SUPABASE
   -------                                        --------
@@ -472,10 +492,10 @@
 </pre>
 
 <h3>Use Case 4: Share Encrypted File</h3>
-<p>File sharing employs a hybrid encryption scheme. As Bernstein et al. (2012) explain, "symmetric encryption is used for bulk data, while asymmetric encryption wraps the symmetric key for each recipient" (p. 8). This approach balances performance with the security requirements of multi-recipient file sharing.</p>
+<p>File sharing was one of the trickier parts to get right because you cannot just NaCl Box a whole file for each recipient &mdash; that would mean uploading the file N times for N members. Instead, the app generates a random symmetric key with NaCl Secretbox, encrypts the file once with that key, then wraps the symmetric key individually for each recipient using their public key. Bernstein et al. (2012) describe this as a hybrid encryption approach. The encrypted blob goes to Supabase Storage, and the wrapped keys get stored alongside the message. Each recipient unwraps their copy of the symmetric key, downloads the blob, and decrypts locally.</p>
 
 <p class="no-indent"><span class="figure-label">Figure 6</span></p>
-<p class="figure-caption">Workflow Diagram for Encrypted File Sharing</p>
+<p class="figure-caption">Workflow: Encrypted File Sharing With Hybrid Key Wrapping</p>
 <pre>
   STUDENT (Sender)             ENCRYPTION ENGINE              SUPABASE
   ----------------             -----------------              --------
@@ -532,11 +552,11 @@
 <h1>Main Screen Visual Design</h1>
 
 <h2>Design System</h2>
-<p>The application employs a dark theme with gold accent colors, following contemporary mobile-first design principles (Babich, 2019). The color palette consists of a primary background (#0a0a0a), card surfaces (#1a1a1a), and gold accents (#cfb87c) for interactive elements and branding. Typography uses the DM Sans font family for body text, Instrument Serif for headings, and JetBrains Mono for code and encryption-related displays.</p>
+<p>I went with a dark theme because most messaging apps have moved in that direction, and it is easier on the eyes for long reading sessions. The background is near-black (#0a0a0a) with lighter card surfaces (#1a1a1a) and gold accents (#cfb87c) pulled from CTU's branding. Body text uses DM Sans, headings use Instrument Serif, and anything encryption-related (like key fingerprints) uses JetBrains Mono so it is clearly distinguishable. Babich (2019) emphasizes that mobile-first design should prioritize thumb-reachable tap targets and minimal chrome, which is why the main actions (new chat, send message) are always within easy reach.</p>
 
 <h2>Mobile Conversation List</h2>
 <p class="no-indent"><span class="figure-label">Figure 7</span></p>
-<p class="figure-caption">Mobile Wireframe of the Main Conversation List Screen</p>
+<p class="figure-caption">Mobile Wireframe: Conversation List (Main Screen)</p>
 <pre>
   +--------------------------------------+
   |  Campus Connect       [CTU Online]   |  Navbar
@@ -561,7 +581,7 @@
 
 <h2>Mobile Chat View</h2>
 <p class="no-indent"><span class="figure-label">Figure 8</span></p>
-<p class="figure-caption">Mobile Wireframe of the Chat Interface</p>
+<p class="figure-caption">Mobile Wireframe: Chat Interface With Typing Indicator</p>
 <pre>
   +--------------------------------------+
   |  &lt;- Jane Doe            [+Add][Files]|  Header
@@ -589,8 +609,10 @@
 </pre>
 
 <h2>Desktop Split Panel</h2>
+<p>On wider screens (768px and up), the layout shifts to a split panel with the conversation list on the left and the active chat on the right. This follows the master-detail pattern that users already know from apps like iMessage and Slack.</p>
+
 <p class="no-indent"><span class="figure-label">Figure 9</span></p>
-<p class="figure-caption">Desktop Wireframe Showing Split-Panel Layout</p>
+<p class="figure-caption">Desktop Wireframe: Split-Panel Layout With Sidebar</p>
 <pre>
   +---------------------------------------------------------------------+
   |  Campus Connect      CTU Online       Messages  Directory  (gear)   |
@@ -624,7 +646,7 @@
 <h1>Data Management Requirements</h1>
 
 <h2>Entity-Relationship Model</h2>
-<p>The database schema consists of seven tables with clearly defined relationships enforced through foreign key constraints. As Elmasri and Navathe (2015) emphasize, "referential integrity constraints are essential for maintaining consistency in relational databases" (p. 78). The use of ON DELETE CASCADE ensures that orphaned records are automatically removed when a parent entity is deleted.</p>
+<p>The database has seven tables. The central one is profiles, which links to auth.users (Supabase's built-in auth table) on one side and schools on the other. Every conversation goes through the conversation_members junction table, which also tracks roles and read timestamps. Elmasri and Navathe (2015) stress that "referential integrity constraints are essential for maintaining consistency in relational databases" (p. 78), so I set up foreign keys with ON DELETE CASCADE throughout &mdash; if a user gets deleted, their memberships and messages go with them automatically.</p>
 
 <p class="no-indent"><span class="figure-label">Figure 10</span></p>
 <p class="figure-caption">Entity-Relationship Diagram for the CampusConnect Database</p>
@@ -675,40 +697,48 @@
 </pre>
 
 <h2>Row-Level Security</h2>
-<p>All tables enforce Row-Level Security (RLS), which Supabase (2024) describes as "PostgreSQL's built-in mechanism for restricting row access based on the current user." Table 3 summarizes the access control matrix.</p>
+<p>Every table has RLS enabled, which means PostgreSQL itself checks whether the current user is allowed to read or write each row. This is not application-level filtering &mdash; it happens at the database engine level, so even a direct API call cannot bypass it (Supabase, 2024). I wrote a helper function called get_my_conv_ids() that returns the list of conversation IDs the current user belongs to, and most policies reference it.</p>
 
 <p class="no-indent"><span class="figure-label">Table 3</span></p>
 <p class="figure-caption">Row-Level Security Access Control Matrix</p>
 <table>
-  <tr><th>Table</th><th>SELECT</th><th>INSERT</th><th>UPDATE</th></tr>
-  <tr><td>schools</td><td>Everyone</td><td>System only</td><td>N/A</td></tr>
-  <tr><td>profiles</td><td>Everyone</td><td>System only</td><td>Own only</td></tr>
-  <tr><td>conversations</td><td>Members*</td><td>Creator</td><td>Members*</td></tr>
-  <tr><td>conversation_members</td><td>Members*</td><td>Authenticated</td><td>Own only</td></tr>
-  <tr><td>messages</td><td>Members*</td><td>Sender + Member*</td><td>Members*</td></tr>
-  <tr><td>public_keys</td><td>Authenticated</td><td>Own only</td><td>Own only</td></tr>
-  <tr><td>push_tokens</td><td>Own only</td><td>Own only</td><td>Own only</td></tr>
+  <thead>
+    <tr><th>Table</th><th>SELECT</th><th>INSERT</th><th>UPDATE</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>schools</td><td>Everyone</td><td>System only</td><td>N/A</td></tr>
+    <tr><td>profiles</td><td>Everyone</td><td>System only</td><td>Own row only</td></tr>
+    <tr><td>conversations</td><td>Members only</td><td>Creator</td><td>Members only</td></tr>
+    <tr><td>conversation_members</td><td>Members only</td><td>Authenticated</td><td>Own row only</td></tr>
+    <tr><td>messages</td><td>Members only</td><td>Sender + Member</td><td>Members only</td></tr>
+    <tr><td>public_keys</td><td>Authenticated</td><td>Own row only</td><td>Own row only</td></tr>
+    <tr><td>push_tokens</td><td>Own row only</td><td>Own row only</td><td>Own row only</td></tr>
+  </tbody>
 </table>
-<p class="no-indent" style="font-size: 10pt; font-style: italic;">* "Members" indicates the user must be in conversation_members for that conversation, enforced by the get_my_conv_ids() helper function.</p>
+<p class="table-note">Note. "Members only" means the user must appear in conversation_members for that conversation, enforced by the get_my_conv_ids() function.</p>
 
 <h2>Encryption at Rest</h2>
-<p>Table 4 documents where each data type is stored and its encryption method. The zero-knowledge architecture ensures that "even a compromised server cannot reveal message content" (Ermoshina et al., 2016, p. 12).</p>
+<p>One thing I want to be clear about is what is encrypted and what is not. Message content and files are always encrypted before leaving the browser. Metadata like timestamps, sender IDs, and conversation membership is not encrypted &mdash; the server needs that information to route messages and enforce RLS. Table 4 breaks this down.</p>
 
 <p class="no-indent"><span class="figure-label">Table 4</span></p>
-<p class="figure-caption">Data Encryption Model</p>
+<p class="figure-caption">Data Storage and Encryption Methods</p>
 <table>
-  <tr><th>Data Type</th><th>Storage Location</th><th>Encryption Method</th></tr>
-  <tr><td>Message text</td><td>messages.content</td><td>NaCl Box (per-recipient ciphertext)</td></tr>
-  <tr><td>File contents</td><td>Supabase Storage</td><td>NaCl Secretbox (random symmetric key)</td></tr>
-  <tr><td>File keys</td><td>messages.content</td><td>NaCl Box (wrapped per-recipient)</td></tr>
-  <tr><td>Private keys</td><td>Browser IndexedDB</td><td>Local device only (not transmitted)</td></tr>
-  <tr><td>Public keys</td><td>public_keys table</td><td>Plaintext (public by design)</td></tr>
-  <tr><td>Passwords</td><td>auth.users</td><td>bcrypt (managed by Supabase Auth)</td></tr>
+  <thead>
+    <tr><th>Data Type</th><th>Where It Lives</th><th>How It Is Protected</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Message text</td><td>messages.content (database)</td><td>NaCl Box &mdash; encrypted per recipient</td></tr>
+    <tr><td>File contents</td><td>Supabase Storage (S3)</td><td>NaCl Secretbox &mdash; random symmetric key</td></tr>
+    <tr><td>File keys</td><td>messages.content (database)</td><td>NaCl Box &mdash; wrapped per recipient</td></tr>
+    <tr><td>Private keys</td><td>Browser IndexedDB (local)</td><td>Never leaves the device</td></tr>
+    <tr><td>Public keys</td><td>public_keys table (database)</td><td>Plaintext &mdash; public by design</td></tr>
+    <tr><td>Passwords</td><td>auth.users (database)</td><td>bcrypt hash &mdash; managed by Supabase Auth</td></tr>
+  </tbody>
 </table>
 
 <h2>Data Flow Summary</h2>
 <p class="no-indent"><span class="figure-label">Figure 11</span></p>
-<p class="figure-caption">Simplified Data Flow for End-to-End Encrypted Messaging</p>
+<p class="figure-caption">End-to-End Data Flow From Sender to Recipient</p>
 <pre>
   +----------+     +------------+     +------------+     +----------+
   | Student  |     |   Client   |     |  Supabase  |     | Student  |
@@ -743,7 +773,7 @@
 </pre>
 
 <h2>Storage Considerations</h2>
-<p>Message storage follows an append-only model with paginated queries to prevent loading entire conversation histories (Sommerville, 2015). Foreign key constraints with ON DELETE CASCADE ensure referential integrity when users are removed. The conversation_members table uses a composite primary key on (conversation_id, user_id) to enable efficient membership lookups, and the get_my_conv_ids() helper function caches results per request to prevent recursive RLS evaluation.</p>
+<p>Messages are loaded with pagination (50 at a time) so the app does not try to decrypt an entire conversation history on load. Foreign keys with CASCADE handle cleanup automatically. The conversation_members table uses a composite primary key on (conversation_id, user_id) for fast membership lookups, and the get_my_conv_ids() helper caches its result per database request so it does not re-evaluate for every row in a policy check.</p>
 
 <!-- REFERENCES -->
 <div class="page-break"></div>
@@ -753,11 +783,11 @@
 
 <p>Bass, L., Clements, P., &amp; Kazman, R. (2012). <em>Software architecture in practice</em> (3rd ed.). Addison-Wesley Professional.</p>
 
-<p>Bernstein, D. J., Lange, T., &amp; Schwabe, P. (2012). The security impact of a new cryptographic library. In A. Hevia &amp; G. Neven (Eds.), <em>Progress in cryptology - LATINCRYPT 2012</em> (pp. 159-176). Springer. https://doi.org/10.1007/978-3-642-33481-8_9</p>
+<p>Bernstein, D. J., Lange, T., &amp; Schwabe, P. (2012). The security impact of a new cryptographic library. In A. Hevia &amp; G. Neven (Eds.), <em>Progress in cryptology &ndash; LATINCRYPT 2012</em> (pp. 159&ndash;176). Springer. https://doi.org/10.1007/978-3-642-33481-8_9</p>
 
 <p>Elmasri, R., &amp; Navathe, S. B. (2015). <em>Fundamentals of database systems</em> (7th ed.). Pearson.</p>
 
-<p>Ermoshina, K., Musiani, F., &amp; Halpin, H. (2016). End-to-end encrypted messaging protocols: An overview. In F. Bagnoli et al. (Eds.), <em>Internet science</em> (pp. 244-254). Springer. https://doi.org/10.1007/978-3-319-45982-0_22</p>
+<p>Ermoshina, K., Musiani, F., &amp; Halpin, H. (2016). End-to-end encrypted messaging protocols: An overview. In F. Bagnoli et al. (Eds.), <em>Internet science</em> (pp. 244&ndash;254). Springer. https://doi.org/10.1007/978-3-319-45982-0_22</p>
 
 <p>Sommerville, I. (2015). <em>Software engineering</em> (10th ed.). Pearson Education.</p>
 
