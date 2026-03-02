@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getConversation, addMemberToConversation, getSchoolDirectory, markAsRead } from '../api/conversations';
 import { getMessages, sendMessage, editMessage, deleteMessage } from '../api/messages';
-import { getBatchPublicKeys, getPublicKey } from '../api/keys';
+import { getBatchPublicKeys } from '../api/keys';
 import { useAuthStore } from '../store/auth';
 import { useMessageStore } from '../store/message';
 import { usePresenceStore } from '../store/presence';
-import { encryptForMultipleRecipients, decryptMessage, encryptForRecipient } from '../crypto/encryption';
+import { decryptMessage } from '../crypto/encryption';
 import { getPrivateKey } from '../crypto/keyManager';
 import { uploadFile, downloadFile, deleteFile } from '../api/files';
 import { decryptFile } from '../crypto/fileEncryption';
@@ -155,7 +155,7 @@ export default function Chat() {
 
     for (const msg of msgs) {
       try {
-        // If already decrypted by another hook/process
+        // If already processed
         if (msg.decrypted_text) {
           results.push(msg);
           continue;
@@ -178,14 +178,12 @@ export default function Chat() {
             if (parsed.filename) {
               filename = parsed.filename;
             }
-            // Detect legacy encrypted format (has keys array)
             if (parsed.keys && Array.isArray(parsed.keys)) {
               isLegacyEncrypted = true;
               legacyKeyPayload = parsed.keys.find(
                 (k: any) => (k.recipientId || k.recipient_id) === user?.id
               );
             } else if (Array.isArray(parsed)) {
-              // Very old format: entire content is array of key payloads
               isLegacyEncrypted = true;
               legacyKeyPayload = parsed.find(
                 (k: any) => (k.recipientId || k.recipient_id) === user?.id
@@ -206,38 +204,57 @@ export default function Chat() {
           continue;
         }
 
-        const payloads = msg.content ? JSON.parse(msg.content) : [];
-        const senderId = msg.sender_id || (msg.sender?.id);
-
-        const myPayload = payloads.find(
-          (p: any) => p.recipient_id === user?.id || p.recipientId === user?.id
-        );
-
-        if (myPayload) {
-          // Use encryptor_id if present (for re-encrypted messages), otherwise fallback to senderId
-          const effectiveSenderId = myPayload.encryptor_id || myPayload.encryptorId || senderId;
-
-          if (keys[effectiveSenderId]) {
-            const text = await decryptMessage(
-              {
-                recipient_id: myPayload.recipient_id || myPayload.recipientId,
-                ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
-                nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
-              },
-              keys[effectiveSenderId]
-            );
-            results.push({
-              ...msg,
-              decrypted_text: text
-            });
-          } else {
-            results.push(msg);
-          }
-        } else {
+        // Text messages: detect plaintext vs old encrypted format
+        if (!msg.content) {
           results.push(msg);
+          continue;
+        }
+
+        // Check if content is old encrypted format (JSON array with ciphertext)
+        let isOldEncrypted = false;
+        try {
+          const parsed = JSON.parse(msg.content);
+          if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].ciphertext_b64 || parsed[0].ciphertextB64)) {
+            isOldEncrypted = true;
+          }
+        } catch {
+          // Not valid JSON — it's plaintext
+        }
+
+        if (isOldEncrypted) {
+          // Old encrypted format: best-effort decryption
+          try {
+            const payloads = JSON.parse(msg.content);
+            const senderId = msg.sender_id || msg.sender?.id;
+            const myPayload = payloads.find(
+              (p: any) => p.recipient_id === user?.id || p.recipientId === user?.id
+            );
+            if (myPayload) {
+              const effectiveSenderId = myPayload.encryptor_id || myPayload.encryptorId || senderId;
+              if (keys[effectiveSenderId]) {
+                const text = await decryptMessage(
+                  {
+                    recipient_id: myPayload.recipient_id || myPayload.recipientId,
+                    ciphertext_b64: myPayload.ciphertext_b64 || myPayload.ciphertextB64,
+                    nonce_b64: myPayload.nonce_b64 || myPayload.nonceB64
+                  },
+                  keys[effectiveSenderId]
+                );
+                results.push({ ...msg, decrypted_text: text });
+                continue;
+              }
+            }
+          } catch (err) {
+            console.error('Legacy decryption failed:', msg.id, err);
+          }
+          // Could not decrypt old message
+          results.push(msg);
+        } else {
+          // New plaintext format: content IS the message
+          results.push({ ...msg, decrypted_text: msg.content });
         }
       } catch (err) {
-        console.error('Decryption failed for message:', msg.id, err);
+        console.error('Message processing failed:', msg.id, err);
         results.push(msg);
       }
     }
@@ -286,31 +303,9 @@ export default function Chat() {
   const handleSend = async (text: string, mentionedUserIds?: string[]) => {
     if (!id || !user || !conversation) return;
 
-    const secretKey = await getPrivateKey();
-    let payloads;
-
-    if (secretKey && Object.keys(memberKeys).length > 0 && conversation?.members) {
-      const recipients = conversation.members
-        .map((m: any) => {
-          const uid = m.user?.id || m.user_id || m.user;
-          return { userId: uid, publicKeyB64: memberKeys[uid] };
-        })
-        .filter((r: any) => r.publicKeyB64);
-
-      payloads = encryptForMultipleRecipients(text, recipients, secretKey);
-    } else {
-      payloads = (conversation?.members || []).map((m: any) => {
-        const uid = m.user?.id || m.user_id || m.user;
-        return {
-          recipient_id: uid,
-          ciphertext_b64: btoa(text),
-          nonce_b64: btoa('0'.repeat(24)),
-        };
-      });
-    }
-
     try {
-      const msg = await sendMessage(id, 'text', JSON.stringify(payloads), undefined, mentionedUserIds);
+      // Send plaintext — no encryption
+      const msg = await sendMessage(id, 'text', text, undefined, mentionedUserIds);
 
       // Stop typing indicator immediately on send
       sendTyping(false);
@@ -328,29 +323,15 @@ export default function Chat() {
   const handleEditMessage = async (message: any, newText: string) => {
     if (!id || !user || !conversation) return;
 
-    const secretKey = await getPrivateKey();
-    if (!secretKey || Object.keys(memberKeys).length === 0) {
-      alert('Encryption keys not available.');
-      return;
-    }
-
-    const recipients = conversation.members
-      .map((m: any) => {
-        const uid = m.user?.id || m.user_id || m.user;
-        return { userId: uid, publicKeyB64: memberKeys[uid] };
-      })
-      .filter((r: any) => r.publicKeyB64);
-
-    const payloads = encryptForMultipleRecipients(newText, recipients, secretKey);
-
     try {
-      await editMessage(message.id, JSON.stringify(payloads));
+      // Edit with plaintext — no encryption
+      await editMessage(message.id, newText);
 
       // Optimistic UI update
       setDisplayMessages(prev =>
         prev.map(m =>
           m.id === message.id
-            ? { ...m, content: JSON.stringify(payloads), decrypted_text: newText, edited_at: new Date().toISOString() }
+            ? { ...m, content: newText, decrypted_text: newText, edited_at: new Date().toISOString() }
             : m
         )
       );
@@ -486,59 +467,15 @@ export default function Chat() {
   const handleAddMember = async (targetUser: any) => {
     if (!id || !user) return;
 
-    const shareHistory = window.confirm(`Would you like to share the entire conversation history with ${targetUser.display_name}? This will allow them to decrypt previous messages.`);
-
     setIsAdding(true);
     try {
-      let reEncrypted: any[] = [];
-
-      if (shareHistory) {
-        const secretKey = await getPrivateKey();
-        const targetPublicKey = await getPublicKey(targetUser.id);
-
-        if (secretKey && targetPublicKey) {
-          // Re-encrypt all decryptable text messages for the new user
-          for (const msg of displayMessages) {
-            if (msg.decrypted_text && msg.message_type !== 'file') {
-              const parsed = JSON.parse(msg.content);
-              const payloads = Array.isArray(parsed) ? parsed : (parsed.keys || []);
-              const newPayload = encryptForRecipient(
-                msg.decrypted_text,
-                targetPublicKey.publicKeyB64,
-                secretKey,
-                user.id // We are the encryptor
-              );
-
-              // Add recipient_id to match structure
-              (newPayload as any).recipient_id = targetUser.id;
-
-              payloads.push(newPayload);
-              const updatedContent = Array.isArray(parsed)
-                ? JSON.stringify(payloads)
-                : JSON.stringify({ ...parsed, keys: payloads });
-              reEncrypted.push({
-                messageId: msg.id,
-                content: updatedContent,
-              });
-            }
-          }
-        }
-      }
-
-      await addMemberToConversation(id, targetUser.id, reEncrypted);
+      await addMemberToConversation(id, targetUser.id);
 
       // Update local state
       const updatedConv = await getConversation(id);
       setConversation(updatedConv);
       setShowAddMember(false);
       setSearchQuery('');
-
-      // Optimistic key map update
-      const targetKey = await getPublicKey(targetUser.id);
-      if (targetKey) {
-        setMemberKeys(prev => ({ ...prev, [targetUser.id]: targetKey.publicKeyB64 }));
-      }
-
     } catch (err) {
       console.error('Failed to add member:', err);
       alert('Failed to add member to conversation.');
