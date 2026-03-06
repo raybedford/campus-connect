@@ -3,10 +3,10 @@ import type { Message } from '../types';
 
 export async function getMessages(
   conversationId: string,
-  _before?: string,
+  before?: string,
   limit = 50
 ): Promise<Message[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('messages')
     .select(`
       *,
@@ -18,11 +18,21 @@ export async function getMessages(
       )
     `)
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-    .limit(limit);
+    .order('created_at', { ascending: false }); // Most recent first
+
+  // Pagination: load messages before a specific timestamp
+  if (before) {
+    query = query.lt('created_at', before);
+  }
+
+  query = query.limit(limit);
+
+  const { data, error } = await query;
 
   if (error) throw error;
-  return (data || []) as Message[];
+
+  // Reverse to show oldest at top, newest at bottom
+  return ((data || []) as Message[]).reverse();
 }
 
 export async function sendMessage(

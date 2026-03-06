@@ -1,20 +1,43 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import { useAuthStore } from './store/auth';
 import { useNotifications } from './hooks/useNotifications';
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Signup from './pages/Signup';
-import ConversationList from './pages/ConversationList';
-import Chat from './pages/Chat';
-import NewConversation from './pages/NewConversation';
-import Directory from './pages/Directory';
-import Settings from './pages/Settings';
-import KeyTransferPair from './pages/KeyTransferPair';
 import './App.css';
+
+// Lazy load all pages for code splitting
+const Login = lazy(() => import('./pages/Login'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ConversationList = lazy(() => import('./pages/ConversationList'));
+const Chat = lazy(() => import('./pages/Chat'));
+const NewConversation = lazy(() => import('./pages/NewConversation'));
+const Directory = lazy(() => import('./pages/Directory'));
+const Settings = lazy(() => import('./pages/Settings'));
+const KeyTransferPair = lazy(() => import('./pages/KeyTransferPair'));
+
+// Loading fallback component
+function PageLoader() {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      background: 'var(--cream)'
+    }}>
+      <div style={{
+        fontSize: '2rem',
+        color: 'var(--gold)',
+        animation: 'pulse 1.5s ease-in-out infinite'
+      }}>
+        Loading...
+      </div>
+    </div>
+  );
+}
 
 function AppRoutes() {
   const initializeAuth = useAuthStore(s => s.initialize);
@@ -29,7 +52,8 @@ function AppRoutes() {
   return (
     <>
       <Navbar />
-      <Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
@@ -84,7 +108,8 @@ function AppRoutes() {
           />
           <Route path="*" element={<Navigate to="/conversations" replace />} />
         </Routes>
-      </>
+      </Suspense>
+    </>
   );
 }
 
