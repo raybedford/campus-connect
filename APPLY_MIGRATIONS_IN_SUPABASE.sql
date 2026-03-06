@@ -81,8 +81,14 @@ COMMENT ON FUNCTION get_key_transfer_by_code IS 'Securely retrieve key transfer 
 -- File: 20260306_storage_bucket_rls.sql
 -- ========================================
 
+-- Drop existing policies if they exist (to make this script idempotent)
+DROP POLICY IF EXISTS "Users can upload to conversations they're in" ON storage.objects;
+DROP POLICY IF EXISTS "Users can read files from their conversations" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own files" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update their own files" ON storage.objects;
+
 -- Policy: Users can upload files to conversations they're members of
-CREATE POLICY IF NOT EXISTS "Users can upload to conversations they're in"
+CREATE POLICY "Users can upload to conversations they're in"
 ON storage.objects FOR INSERT
 WITH CHECK (
   bucket_id = 'chat-files'
@@ -94,7 +100,7 @@ WITH CHECK (
 );
 
 -- Policy: Users can read files from conversations they're members of
-CREATE POLICY IF NOT EXISTS "Users can read files from their conversations"
+CREATE POLICY "Users can read files from their conversations"
 ON storage.objects FOR SELECT
 USING (
   bucket_id = 'chat-files'
@@ -106,7 +112,7 @@ USING (
 );
 
 -- Policy: Users can delete files they uploaded
-CREATE POLICY IF NOT EXISTS "Users can delete their own files"
+CREATE POLICY "Users can delete their own files"
 ON storage.objects FOR DELETE
 USING (
   bucket_id = 'chat-files'
@@ -114,18 +120,12 @@ USING (
 );
 
 -- Policy: Users can update their own files
-CREATE POLICY IF NOT EXISTS "Users can update their own files"
+CREATE POLICY "Users can update their own files"
 ON storage.objects FOR UPDATE
 USING (
   bucket_id = 'chat-files'
   AND owner = auth.uid()
 );
-
-COMMENT ON POLICY "Users can upload to conversations they're in" ON storage.objects
-IS 'Restricts file uploads to conversations where user is a member';
-
-COMMENT ON POLICY "Users can read files from their conversations" ON storage.objects
-IS 'Restricts file access to conversation members only';
 
 -- ========================================
 -- END OF MIGRATIONS
