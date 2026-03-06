@@ -145,8 +145,19 @@ export default function QRKeyTransfer({ onImportComplete }: QRKeyTransferProps) 
       const code = await initializeTransferRequest();
       setTransferCode(code);
 
-      // Generate pairing URL
-      const baseUrl = window.location.origin;
+      // Generate pairing URL - use production URL if in desktop app
+      let baseUrl = window.location.origin;
+
+      // Detect if running in Electron/Capacitor (desktop app)
+      const isDesktop = baseUrl.startsWith('capacitor://') ||
+                        baseUrl.startsWith('file://') ||
+                        (window as any).Capacitor?.isNativePlatform();
+
+      if (isDesktop) {
+        // Use production web URL for desktop app
+        baseUrl = import.meta.env.VITE_WEB_URL || 'https://campusconnect.raybedford.net';
+      }
+
       const url = `${baseUrl}/pair?code=${code}`;
       setPairingUrl(url);
 
