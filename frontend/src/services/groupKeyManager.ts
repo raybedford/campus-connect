@@ -20,24 +20,39 @@ const pendingFetches = new Map<string, Promise<Uint8Array | null>>();
  * Get group key for a conversation (from cache or fetch & unwrap)
  */
 export async function getGroupKey(conversationId: string, userId: string): Promise<Uint8Array | null> {
-  // Check cache first
-  if (groupKeyCache.has(conversationId)) {
-    return groupKeyCache.get(conversationId)!;
+  // Check cache first (fast path)
+  const cached = groupKeyCache.get(conversationId);
+  if (cached) {
+    return cached;
   }
 
-  // Check if fetch is already in progress (prevents race condition)
-  if (pendingFetches.has(conversationId)) {
-    return pendingFetches.get(conversationId)!;
+  // Atomic check-and-set for pending fetches (prevents race condition)
+  const pending = pendingFetches.get(conversationId);
+  if (pending) {
+    return pending;
   }
 
-  // Start new fetch
-  const fetchPromise = (async () => {
+  // Create fetch promise (to be registered atomically)
+  let resolveFetch!: (value: Uint8Array | null) => void;
+  let rejectFetch!: (reason: any) => void;
+
+  const fetchPromise = new Promise<Uint8Array | null>((resolve, reject) => {
+    resolveFetch = resolve;
+    rejectFetch = reject;
+  });
+
+  // Register promise BEFORE starting async work (atomic)
+  pendingFetches.set(conversationId, fetchPromise);
+
+  // Start async work
+  (async () => {
     try {
       // Fetch wrapped key from database
       const wrappedKey = await getWrappedGroupKey(conversationId, userId);
       if (!wrappedKey) {
         console.warn(`No group key found for conversation ${conversationId}`);
-        return null;
+        resolveFetch(null);
+        return;
       }
 
       try {
@@ -45,7 +60,8 @@ export async function getGroupKey(conversationId: string, userId: string): Promi
         const wrapperPublicKey = await getPublicKey(wrappedKey.wrapped_by_user_id);
         if (!wrapperPublicKey) {
           console.error('Could not find public key of key wrapper');
-          return null;
+          resolveFetch(null);
+          return;
         }
 
         // Unwrap the group key
@@ -58,25 +74,28 @@ export async function getGroupKey(conversationId: string, userId: string): Promi
         // Validate key length
         if (groupKey.length !== 32) {
           console.error('Invalid group key length:', groupKey.length);
-          return null;
+          resolveFetch(null);
+          return;
         }
 
         // Cache it for future use
         groupKeyCache.set(conversationId, groupKey);
 
         console.log(`✅ Loaded group key for conversation ${conversationId}`);
-        return groupKey;
+        resolveFetch(groupKey);
       } catch (error) {
         console.error('Failed to unwrap group key:', error);
-        return null;
+        resolveFetch(null);
       }
+    } catch (error) {
+      console.error('Failed to fetch wrapped key:', error);
+      rejectFetch(error);
     } finally {
       // Clean up pending fetch
       pendingFetches.delete(conversationId);
     }
   })();
 
-  pendingFetches.set(conversationId, fetchPromise);
   return fetchPromise;
 }
 

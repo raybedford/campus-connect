@@ -1,5 +1,22 @@
 import { supabase } from '../lib/supabase';
 
+// Password validation utility
+export function validatePassword(password: string): { valid: boolean; error?: string } {
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters long' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one uppercase letter' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one lowercase letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number' };
+  }
+  return { valid: true };
+}
+
 export const login = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -12,6 +29,12 @@ export const login = async (email: string, password: string) => {
 export const signup = async (email: string, password: string, displayName: string) => {
   if (!email.endsWith('.edu')) {
     throw new Error('Only .edu emails are allowed.');
+  }
+
+  // Validate password strength
+  const passwordCheck = validatePassword(password);
+  if (!passwordCheck.valid) {
+    throw new Error(passwordCheck.error);
   }
 
   // Auto-detect browser/native language (e.g., 'es', 'fr', 'en')
@@ -51,12 +74,35 @@ export const forgotPassword = async (email: string) => {
 };
 
 export const resetPassword = async (password: string) => {
+  // Validate password strength
+  const passwordCheck = validatePassword(password);
+  if (!passwordCheck.valid) {
+    throw new Error(passwordCheck.error);
+  }
+
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw error;
   return { message: 'Password has been updated.' };
 };
 
-export const updateMe = async (data: any) => {
+interface UpdateProfileData {
+  full_name?: string;
+  preferred_language?: string;
+  avatar_url?: string;
+}
+
+export const updateMe = async (data: UpdateProfileData) => {
+  // Validate data
+  if (data.full_name !== undefined && typeof data.full_name !== 'string') {
+    throw new Error('Invalid full_name');
+  }
+  if (data.preferred_language !== undefined && typeof data.preferred_language !== 'string') {
+    throw new Error('Invalid preferred_language');
+  }
+  if (data.avatar_url !== undefined && typeof data.avatar_url !== 'string') {
+    throw new Error('Invalid avatar_url');
+  }
+
   const { error } = await supabase.auth.updateUser({
     data: { ...data },
   });

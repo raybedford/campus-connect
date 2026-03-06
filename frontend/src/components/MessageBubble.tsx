@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/auth';
 import { downloadFile, getFileUrl } from '../api/files';
 import { decryptFile } from '../crypto/fileEncryption';
 import { getPrivateKey } from '../crypto/keyManager';
+import DOMPurify from 'dompurify';
 
 interface MessageProps {
   message: any;
@@ -15,7 +16,7 @@ interface MessageProps {
   onDeleteFile?: (message: any) => void;
 }
 
-// Simple Markdown Parser for bold, italics, code, and @mentions
+// Safe Markdown Parser with DOMPurify sanitization
 function parseMarkdown(text: string, memberNames: string[] = [], currentUserName?: string) {
   // 0. Escape HTML to prevent XSS
   let html = text
@@ -58,13 +59,21 @@ function parseMarkdown(text: string, memberNames: string[] = [], currentUserName
   }
 
   // Handle newlines
-  return html.replace(/\n/g, '<br />');
+  html = html.replace(/\n/g, '<br />');
+
+  // Sanitize with DOMPurify to prevent XSS
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['strong', 'em', 'code', 'pre', 'br', 'span'],
+    ALLOWED_ATTR: ['class'],
+    KEEP_CONTENT: true,
+  });
 }
 
 export default function MessageBubble({ message, isMine, senderName, members = [], memberKeys = {}, onEdit, onDelete, onDeleteFile }: MessageProps) {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [translationConsent, setTranslationConsent] = useState(false);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
@@ -167,18 +176,30 @@ export default function MessageBubble({ message, isMine, senderName, members = [
   const isGif = hasText?.startsWith('[gif:') && hasText?.endsWith(']');
   const gifUrl = isGif ? hasText.slice(5, -1) : null;
 
-  useEffect(() => {
-    const userLang = profile?.preferred_language || 'en';
-    const shouldAutoTranslate = !isMine && hasText && !translatedText && userLang !== 'en' && !isGif;
-
-    if (shouldAutoTranslate) {
-      handleTranslate();
-    }
-  }, [hasText, isMine, profile?.preferred_language]);
+  // Disabled auto-translation to preserve E2EE
+  // useEffect(() => {
+  //   const userLang = profile?.preferred_language || 'en';
+  //   const shouldAutoTranslate = !isMine && hasText && !translatedText && userLang !== 'en' && !isGif;
+  //   if (shouldAutoTranslate) {
+  //     handleTranslate();
+  //   }
+  // }, [hasText, isMine, profile?.preferred_language]);
 
   const handleTranslate = async () => {
     const textToTranslate = hasText;
     if (!textToTranslate || isTranslating) return;
+
+    // Warn user about E2EE implications
+    if (!translationConsent) {
+      const confirmed = confirm(
+        '⚠️ Translation Warning\n\n' +
+        'Translating this message will send the plaintext content to an external translation service ' +
+        '(mymemory.translated.net), which temporarily breaks end-to-end encryption for this message.\n\n' +
+        'Do you want to proceed?'
+      );
+      if (!confirmed) return;
+      setTranslationConsent(true);
+    }
 
     setIsTranslating(true);
     try {

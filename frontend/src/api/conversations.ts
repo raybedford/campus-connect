@@ -181,17 +181,20 @@ export async function markAsRead(conversationId: string): Promise<void> {
 }
 
 export async function searchUsers(query: string): Promise<Profile[]> {
+  // Escape special characters to prevent SQL injection
+  const sanitizedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
+
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .or(`display_name.ilike.%${query}%,email.ilike.%${query}%`)
+    .or(`display_name.ilike.%${sanitizedQuery}%,email.ilike.%${sanitizedQuery}%`)
     .limit(20);
 
   if (error) throw error;
   return (data || []) as Profile[];
 }
 
-export async function getSchoolDirectory(): Promise<Profile[]> {
+export async function getSchoolDirectory(limit = 100, offset = 0): Promise<Profile[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -199,7 +202,9 @@ export async function getSchoolDirectory(): Promise<Profile[]> {
     .from('profiles')
     .select('*')
     .neq('id', user.id) // Exclude self
-    .order('display_name', { ascending: true });
+    .order('display_name', { ascending: true })
+    .range(offset, offset + limit - 1)
+    .limit(limit);
 
   if (error) throw error;
   return (data || []) as Profile[];

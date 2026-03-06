@@ -303,10 +303,20 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
             <input
               ref={fileInputRef}
               type="file"
+              accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file && onFileSelect) onFileSelect(file);
+                if (file) {
+                  // Client-side file validation
+                  const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+                  if (file.size > MAX_SIZE) {
+                    alert(`File size exceeds 50MB limit. Please choose a smaller file.`);
+                    e.target.value = '';
+                    return;
+                  }
+                  if (onFileSelect) onFileSelect(file);
+                }
                 e.target.value = '';
               }}
             />

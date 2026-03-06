@@ -38,27 +38,16 @@ export async function createKeyTransfer(encryptedKeyData: string): Promise<strin
  * Returns the encrypted key data if available, null if not yet uploaded
  */
 export async function checkKeyTransfer(transferCode: string): Promise<string | null> {
+  // Use secure RPC function instead of direct table query
   const { data, error } = await supabase
-    .from('key_transfers')
-    .select('encrypted_key_data, claimed, expires_at')
-    .eq('transfer_code', transferCode)
-    .single();
+    .rpc('get_key_transfer_by_code', { p_transfer_code: transferCode });
 
-  if (error || !data) {
+  if (error || !data || data.length === 0) {
     return null;
   }
 
-  // Check if expired
-  if (new Date(data.expires_at) < new Date()) {
-    return null;
-  }
-
-  // Check if already claimed
-  if (data.claimed) {
-    return null;
-  }
-
-  return data.encrypted_key_data;
+  const transfer = data[0];
+  return transfer.encrypted_key_data || null;
 }
 
 /**
