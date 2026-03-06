@@ -27,6 +27,8 @@
     "@capacitor/push-notifications": "^8.0.1",
     "@supabase/supabase-js": "^2.97.0",
     "@types/qrcode.react": "^1.0.5",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "idb-keyval": "^6.2.2",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",

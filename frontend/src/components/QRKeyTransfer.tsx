@@ -5,23 +5,29 @@
  * by generating a QR code and scanning it on the new device.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { getPublicKey, getPrivateKey } from '../crypto/keyManager';
 import { toBase64, fromBase64 } from '../utils/base64';
 import { encryptMessageWithGroupKey, decryptMessageWithGroupKey, generateGroupKey } from '../crypto/groupEncryption';
+import { initializeTransferRequest, checkKeyTransfer, claimKeyTransfer } from '../api/keyTransfers';
 
 interface QRKeyTransferProps {
   onImportComplete?: () => void;
 }
 
 export default function QRKeyTransfer({ onImportComplete }: QRKeyTransferProps) {
-  const [mode, setMode] = useState<'export' | 'import'>('export');
+  const [mode, setMode] = useState<'pair' | 'export' | 'import'>('pair');
   const [qrData, setQrData] = useState<string>('');
   const [importData, setImportData] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Pairing mode state
+  const [transferCode, setTransferCode] = useState('');
+  const [pairingUrl, setPairingUrl] = useState('');
+  const pollingIntervalRef = useRef<number | null>(null);
 
   // Generate QR code with encrypted keys
   const generateQRCode = async () => {
@@ -130,36 +136,280 @@ export default function QRKeyTransfer({ onImportComplete }: QRKeyTransferProps) 
     }
   };
 
-  // Auto-generate QR code when in export mode
+  // Initialize pairing mode
+  const startPairing = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const code = await initializeTransferRequest();
+      setTransferCode(code);
+
+      // Generate pairing URL
+      const baseUrl = window.location.origin;
+      const url = `${baseUrl}/pair?code=${code}`;
+      setPairingUrl(url);
+
+      // Start polling for keys
+      startPolling(code);
+    } catch (err: any) {
+      console.error('Failed to initialize pairing:', err);
+      setError(err.message || 'Failed to start pairing');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Poll server for uploaded keys
+  const startPolling = (code: string) => {
+    let attempts = 0;
+    const maxAttempts = 60; // 5 minutes at 5-second intervals
+
+    pollingIntervalRef.current = window.setInterval(async () => {
+      attempts++;
+
+      if (attempts > maxAttempts) {
+        stopPolling();
+        setError('Pairing timed out. Please try again.');
+        return;
+      }
+
+      try {
+        const keyData = await checkKeyTransfer(code);
+
+        if (keyData) {
+          // Keys received! Import them
+          stopPolling();
+          await importKeysFromData(keyData);
+          await claimKeyTransfer(code);
+
+          setSuccess('✅ Keys received and imported successfully!');
+
+          if (onImportComplete) {
+            setTimeout(() => {
+              onImportComplete();
+            }, 2000);
+          }
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 5000); // Check every 5 seconds
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  // Import keys from received data
+  const importKeysFromData = async (keyData: string) => {
+    try {
+      const payload = JSON.parse(keyData);
+      const tempKey = fromBase64(payload.key);
+      const decryptedBundleStr = decryptMessageWithGroupKey(
+        payload.data,
+        payload.nonce,
+        tempKey
+      );
+      const keyBundle = JSON.parse(decryptedBundleStr);
+
+      if (keyBundle.expiresAt && Date.now() > keyBundle.expiresAt) {
+        throw new Error('Keys have expired');
+      }
+
+      if (!keyBundle.public || !keyBundle.private) {
+        throw new Error('Invalid key bundle');
+      }
+
+      const { importKeypair } = await import('../crypto/keyManager');
+      await importKeypair(keyBundle.private);
+    } catch (err: any) {
+      throw new Error('Failed to import keys: ' + err.message);
+    }
+  };
+
+  // Auto-start pairing or generate QR code based on mode
   useEffect(() => {
-    if (mode === 'export') {
+    if (mode === 'pair' && !transferCode) {
+      startPairing();
+    } else if (mode === 'export') {
       generateQRCode();
     }
+
+    // Cleanup polling on unmount
+    return () => {
+      stopPolling();
+    };
   }, [mode]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
 
   return (
     <div className="qr-key-transfer">
       <div className="mode-selector">
         <button
-          className={mode === 'export' ? 'active' : ''}
-          onClick={() => setMode('export')}
+          className={mode === 'pair' ? 'active' : ''}
+          onClick={() => {
+            stopPolling();
+            setTransferCode('');
+            setPairingUrl('');
+            setMode('pair');
+          }}
         >
-          📤 Export Keys
+          📱 Pair with Mobile
         </button>
         <button
           className={mode === 'import' ? 'active' : ''}
-          onClick={() => setMode('import')}
+          onClick={() => {
+            stopPolling();
+            setMode('import');
+          }}
         >
-          📥 Import Keys
+          📥 Paste Keys
+        </button>
+        <button
+          className={mode === 'export' ? 'active' : ''}
+          onClick={() => {
+            stopPolling();
+            setMode('export');
+          }}
+        >
+          📤 Export Keys
         </button>
       </div>
 
+      {error && (
+        <div className="error-message" style={{ color: 'red', marginBottom: '1rem', padding: '1rem', background: 'rgba(244, 67, 54, 0.1)', borderRadius: '8px' }}>
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="success-message" style={{ color: 'green', marginBottom: '1rem', padding: '1rem', background: 'rgba(76, 175, 80, 0.1)', borderRadius: '8px' }}>
+          {success}
+        </div>
+      )}
+
+      {mode === 'pair' && (
+        <div className="pair-section">
+          <h3>Pair with Your Mobile Device</h3>
+
+          <div style={{
+            background: '#e8f5e9',
+            padding: '1.5rem',
+            borderRadius: '12px',
+            marginBottom: '1.5rem',
+            border: '2px solid #4CAF50'
+          }}>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.9em', color: '#2e7d32', fontWeight: 'bold' }}>
+              📱 How to pair:
+            </p>
+            <ol style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '0.85em', color: '#388e3c', lineHeight: 1.8 }}>
+              <li>Open Camera app on your mobile device</li>
+              <li>Point at the QR code below</li>
+              <li>Tap the notification to open the link</li>
+              <li>Confirm the code matches, then tap "Transfer My Keys"</li>
+              <li>Your keys will automatically appear here!</li>
+            </ol>
+          </div>
+
+          {loading && !transferCode && (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <p>Initializing pairing...</p>
+            </div>
+          )}
+
+          {transferCode && pairingUrl && (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '2rem',
+                  background: 'white',
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}>
+                  <QRCodeSVG
+                    value={pairingUrl}
+                    size={280}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                padding: '1.5rem',
+                borderRadius: '12px',
+                textAlign: 'center',
+                marginBottom: '1.5rem',
+                border: '3px solid #4CAF50'
+              }}>
+                <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '0.5rem' }}>
+                  Transfer Code
+                </div>
+                <div style={{
+                  fontSize: '3em',
+                  fontWeight: 'bold',
+                  color: '#4CAF50',
+                  letterSpacing: '0.3em',
+                  fontFamily: 'monospace'
+                }}>
+                  {transferCode}
+                </div>
+                <div style={{ fontSize: '0.8em', color: '#666', marginTop: '0.5rem' }}>
+                  Verify this code on your mobile device
+                </div>
+              </div>
+
+              <div style={{
+                textAlign: 'center',
+                padding: '1rem',
+                background: '#fff8e1',
+                borderRadius: '8px',
+                fontSize: '0.9em',
+                color: '#f57c00'
+              }}>
+                <div style={{ marginBottom: '0.5rem' }}>⏳ Waiting for your mobile device...</div>
+                <div style={{ fontSize: '0.85em', color: '#ff9800' }}>This code expires in 5 minutes</div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {mode === 'export' && (
         <div className="export-section">
-          <h3>Transfer Keys to New Device</h3>
-          <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '1rem' }}>
-            Scan this QR code with your new device to transfer your encryption keys.
-            The keys are encrypted during transfer for security.
+          <h3>Export Keys from This Device</h3>
+
+          <div style={{
+            background: '#e3f2fd',
+            padding: '1rem',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            border: '2px solid #2196F3'
+          }}>
+            <p style={{ margin: 0, fontSize: '0.9em', color: '#1565c0', fontWeight: 'bold' }}>
+              📱 Transferring from Mobile to Desktop?
+            </p>
+            <ol style={{ margin: '0.5rem 0 0 1.2rem', padding: 0, fontSize: '0.85em', color: '#1976d2' }}>
+              <li>Tap "Copy Text to Clipboard" below</li>
+              <li>Send to yourself via <strong>iMessage</strong>, <strong>Email</strong>, or <strong>AirDrop</strong></li>
+              <li>On your desktop, paste the text in the Import tab</li>
+            </ol>
+          </div>
+
+          <p style={{ fontSize: '0.85em', color: '#666', marginBottom: '1rem' }}>
+            Your keys are encrypted during transfer for security. This code expires in 15 minutes.
           </p>
 
           {loading && <p>Generating QR code...</p>}
@@ -176,65 +426,87 @@ export default function QRKeyTransfer({ onImportComplete }: QRKeyTransferProps) 
             </div>
           )}
 
-          {qrData && (
-            <div className="qr-code-container" style={{ padding: '1rem', background: 'white', display: 'inline-block', borderRadius: '8px' }}>
-              <QRCodeSVG
-                value={qrData}
-                size={256}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-          )}
-
-          <div style={{ marginTop: '1rem' }}>
-            <p style={{ fontSize: '0.85em', color: '#666', marginBottom: '0.5rem' }}>
-              <strong>For computers without cameras:</strong> Copy this text and paste it on the other device
-            </p>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', fontSize: '1em' }}>
+              Your Encrypted Key (Copy This)
+            </label>
             <textarea
               readOnly
               value={qrData}
-              rows={4}
+              rows={6}
               style={{
                 width: '100%',
-                fontSize: '0.75em',
-                padding: '0.5rem',
+                fontSize: '0.8em',
+                padding: '0.75rem',
                 fontFamily: 'monospace',
-                border: '1px solid #ddd',
-                borderRadius: '4px'
+                border: '2px solid #4CAF50',
+                borderRadius: '8px',
+                background: '#f5f5f5',
+                resize: 'none'
               }}
               onClick={(e) => (e.target as HTMLTextAreaElement).select()}
             />
             <button
               onClick={() => {
                 navigator.clipboard.writeText(qrData);
-                setSuccess('✅ Copied to clipboard!');
-                setTimeout(() => setSuccess(''), 2000);
+                setSuccess('✅ Copied to clipboard! Now send it to your other device.');
+                setTimeout(() => setSuccess(''), 3000);
               }}
               style={{
-                marginTop: '0.5rem',
-                padding: '0.5rem 1rem',
+                marginTop: '0.75rem',
+                padding: '0.75rem 1.5rem',
                 background: '#4CAF50',
                 color: 'white',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: '0.85em'
+                fontSize: '1em',
+                fontWeight: 'bold',
+                width: '100%'
               }}
             >
               📋 Copy Text to Clipboard
             </button>
           </div>
+
+          <details style={{ marginTop: '1.5rem', fontSize: '0.85em' }}>
+            <summary style={{ cursor: 'pointer', color: '#666', fontWeight: 'bold' }}>
+              Show QR Code (for mobile-to-mobile transfer)
+            </summary>
+            {qrData && (
+              <div className="qr-code-container" style={{ padding: '1rem', background: 'white', display: 'inline-block', borderRadius: '8px', marginTop: '1rem' }}>
+                <QRCodeSVG
+                  value={qrData}
+                  size={200}
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+            )}
+          </details>
         </div>
       )}
 
       {mode === 'import' && (
         <div className="import-section">
-          <h3>Import Keys from Another Device</h3>
-          <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '1rem' }}>
-            <strong>On mobile:</strong> Scan the QR code from your computer<br />
-            <strong>On computer:</strong> Paste the text from your mobile device
-          </p>
+          <h3>Import Keys to This Device</h3>
+
+          <div style={{
+            background: '#fff3cd',
+            padding: '1rem',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            border: '2px solid #ffc107'
+          }}>
+            <p style={{ margin: 0, fontSize: '0.9em', color: '#856404', fontWeight: 'bold' }}>
+              💻 Receiving on Desktop from Mobile?
+            </p>
+            <ol style={{ margin: '0.5rem 0 0 1.2rem', padding: 0, fontSize: '0.85em', color: '#856404' }}>
+              <li>On your mobile device, go to Settings → QR Transfer → Export</li>
+              <li>Copy the text and send it to yourself (iMessage/Email/AirDrop)</li>
+              <li>Paste the text below and click "Import Keys"</li>
+            </ol>
+          </div>
 
           {error && (
             <div className="error-message" style={{ color: 'red', marginBottom: '1rem' }}>

@@ -13,6 +13,7 @@ import Chat from './pages/Chat';
 import NewConversation from './pages/NewConversation';
 import Directory from './pages/Directory';
 import Settings from './pages/Settings';
+import KeyTransferPair from './pages/KeyTransferPair';
 import './App.css';
 
 function AppRoutes() {
@@ -33,6 +34,14 @@ function AppRoutes() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/pair"
+            element={
+              <ProtectedRoute>
+                <KeyTransferPair />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/directory"
             element={
