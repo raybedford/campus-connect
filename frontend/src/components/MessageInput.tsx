@@ -8,13 +8,14 @@ interface Props {
   conversationId: string;
   members?: any[];
   uploading?: boolean;
+  uploadProgress?: number;
   initialText?: string;
   isEditing?: boolean;
 }
 
 const EMOJIS = ['😀', '😂', '😍', '👍', '🔥', '🙌', '🎉', '📚', '🎓', '💻', '🤔', '😎', '💯', '✨', '👋', '👀'];
 
-export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [], uploading = false, initialText, isEditing = false }: Props) {
+export default function MessageInput({ onSend, onFileSelect, onTyping, conversationId: _, members = [], uploading = false, uploadProgress = 0, initialText, isEditing = false }: Props) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
@@ -174,6 +175,49 @@ export default function MessageInput({ onSend, onFileSelect, onTyping, conversat
 
   return (
     <div className="chat-input-wrapper" style={{ position: 'relative' }}>
+      {/* Upload progress bar */}
+      {uploading && uploadProgress > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: 0,
+          right: 0,
+          background: 'var(--black-card)',
+          padding: '0.75rem 1rem',
+          borderTop: '1px solid var(--black-border)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '0.25rem',
+              fontSize: '0.75rem',
+              color: 'var(--cream-dim)',
+            }}>
+              <span>Uploading file...</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div style={{
+              width: '100%',
+              height: '4px',
+              background: 'var(--black)',
+              borderRadius: '2px',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${uploadProgress}%`,
+                height: '100%',
+                background: 'var(--gold)',
+                transition: 'width 0.2s ease',
+              }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {mentionQuery !== null && filteredMembers.length > 0 && (
         <div className="mention-dropdown">
           {filteredMembers.map((m, i) => {

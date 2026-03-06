@@ -31,6 +31,8 @@ export default function Chat() {
   const storeMessages = useMessageStore((s) => s.messages[id!] || EMPTY_ARRAY);
   const setMessages = useMessageStore((s) => s.setMessages);
   const addMessage = useMessageStore((s) => s.addMessage);
+  const touchConversation = useMessageStore((s) => s.touchConversation);
+  const pruneOldConversations = useMessageStore((s) => s.pruneOldConversations);
   const clearNotifs = useNotificationStore((s) => s.clearForConversation);
 
   // Clear notifications for this conversation when entering it
@@ -48,7 +50,12 @@ export default function Chat() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingMessage, setEditingMessage] = useState<any | null>(null);
 
+  // Pagination state
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesTopRef = useRef<HTMLDivElement>(null);
   const processingRef = useRef(false);
   const typingUsers = usePresenceStore((s) => s.typingUsers[id!] || EMPTY_SET);
 
@@ -67,6 +74,52 @@ export default function Chat() {
 
   const sharedFiles = displayMessages.filter(m => m.message_type === 'file' && !m.is_deleted);
 
+  // Load older messages (infinite scroll)
+  const loadMoreMessages = async () => {
+    if (!id || !hasMore || loadingMore || displayMessages.length === 0) return;
+
+    setLoadingMore(true);
+    try {
+      // Get timestamp of oldest message
+      const oldestMessage = displayMessages[0];
+      const before = oldestMessage.created_at;
+
+      // Load 50 older messages
+      const olderMessages = await getMessages(id, before, 50);
+
+      if (olderMessages.length === 0) {
+        setHasMore(false);
+      } else {
+        // Decrypt and prepend to existing messages
+        const decrypted = await decryptMessagesList(olderMessages, memberKeys);
+        setDisplayMessages(prev => [...decrypted, ...prev]);
+
+        // Cap at 200 messages to prevent memory leak
+        setDisplayMessages(prev => prev.slice(-200));
+      }
+    } catch (err) {
+      console.error('Failed to load more messages:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Scroll handler for infinite scroll
+  useEffect(() => {
+    const container = document.querySelector('.chat-messages');
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Load more when scrolled near top (within 200px)
+      if (container.scrollTop < 200 && hasMore && !loadingMore) {
+        loadMoreMessages();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadingMore, displayMessages, id]);
+
   useEffect(() => {
     if (showAddMember) {
       getSchoolDirectory().then(setDirectory).catch(console.error);
@@ -76,6 +129,10 @@ export default function Chat() {
   useEffect(() => {
     if (!id || !user) return;
 
+    // Reset pagination state
+    setHasMore(true);
+    setLoadingMore(false);
+
     // Initial mark as read
     markAsRead(id);
 
@@ -83,9 +140,12 @@ export default function Chat() {
       try {
         const [conv, msgs] = await Promise.all([
           getConversation(id),
-          getMessages(id),
+          getMessages(id, undefined, 50), // Load last 50 messages
         ]);
         setConversation(conv);
+
+        // Check if there might be more messages
+        setHasMore(msgs.length === 50);
 
         // Fetch public keys for all members
         const memberIds = (conv?.members || []).map((m: any) => m.user?.id || m.user_id || m.user);
@@ -100,12 +160,20 @@ export default function Chat() {
         const decrypted = await decryptMessagesList(msgs, keyMap);
         setMessages(id, decrypted);
         setDisplayMessages(decrypted);
+
+        // Update last accessed time for memory management
+        touchConversation(id);
       } catch (err) {
         console.error('Failed to load chat:', err);
       }
     };
     load();
-  }, [id, user]);
+
+    // Cleanup: prune old conversations when leaving this chat
+    return () => {
+      pruneOldConversations();
+    };
+  }, [id, user, touchConversation, pruneOldConversations]);
 
   // Sync display messages when store updates (realtime)
   useEffect(() => {
@@ -364,7 +432,8 @@ export default function Chat() {
       // Optimistic UI update (show decrypted version locally)
       const optimisticMsg = { ...msg, decrypted_text: text, content: contentToSend };
       addMessage(id, optimisticMsg);
-      setDisplayMessages(prev => [...prev, optimisticMsg]);
+      // Cap at 200 messages to prevent memory leak
+      setDisplayMessages(prev => [...prev, optimisticMsg].slice(-200));
     } catch (err) {
       console.error('Failed to send message:', err);
     }
@@ -455,11 +524,22 @@ export default function Chat() {
   };
 
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleFileSelect = async (file: File) => {
     if (!id || !user || !conversation) return;
 
     setUploading(true);
+    setUploadProgress(0);
+
+    // Simulate upload progress (since Supabase doesn't expose real progress)
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev; // Cap at 90% until upload completes
+        return prev + 10;
+      });
+    }, 200);
+
     try {
       // Get group key
       const groupKey = await getGroupKey(id, user.id);
@@ -498,7 +578,8 @@ export default function Chat() {
 
         const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
         addMessage(id, optimisticMsg);
-        setDisplayMessages(prev => [...prev, optimisticMsg]);
+        // Cap at 200 messages to prevent memory leak
+        setDisplayMessages(prev => [...prev, optimisticMsg].slice(-200));
       } else {
         // No group key, upload plaintext
         console.warn('⚠️ No group key found, uploading file unencrypted');
@@ -512,10 +593,18 @@ export default function Chat() {
 
         const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
         addMessage(id, optimisticMsg);
-        setDisplayMessages(prev => [...prev, optimisticMsg]);
+        // Cap at 200 messages to prevent memory leak
+        setDisplayMessages(prev => [...prev, optimisticMsg].slice(-200));
       }
+
+      // Complete progress animation
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setTimeout(() => setUploadProgress(0), 500);
     } catch (err: any) {
       console.error('File upload failed:', err);
+      clearInterval(progressInterval);
+      setUploadProgress(0);
       alert(`File upload failed: ${err?.message || 'Unknown error'}`);
     } finally {
       setUploading(false);
@@ -705,6 +794,21 @@ export default function Chat() {
         )}
 
         <div className="chat-messages">
+          {/* Loading indicator for infinite scroll */}
+          {loadingMore && (
+            <div style={{
+              textAlign: 'center',
+              padding: '1rem',
+              color: 'var(--cream-dim)',
+              fontSize: '0.9em'
+            }}>
+              Loading older messages...
+            </div>
+          )}
+
+          {/* Invisible div at top for scroll detection */}
+          <div ref={messagesTopRef} />
+
           {displayMessages.map((msg: any) => (
             <MessageBubble
               key={msg.id}
@@ -748,6 +852,7 @@ export default function Chat() {
           conversationId={id!}
           members={conversation?.members || []}
           uploading={uploading}
+          uploadProgress={uploadProgress}
           initialText={editingMessage?.decrypted_text || undefined}
           isEditing={!!editingMessage}
         />

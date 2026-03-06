@@ -268,7 +268,7 @@ export default function MessageBubble({ message, isMine, senderName, members = [
       <div className="msg-content">
         {isFile && isImage && filePreviewUrl ? (
           <div className="file-preview">
-            <img src={filePreviewUrl} alt={fileName} className="file-preview-img" />
+            <img src={filePreviewUrl} alt={fileName} className="file-preview-img" loading="lazy" />
             <div className="file-preview-name">{fileName}</div>
           </div>
         ) : isFile && isImage && !filePreviewUrl && !fileError ? (
@@ -284,7 +284,7 @@ export default function MessageBubble({ message, isMine, senderName, members = [
         ) : hasText ? (
           <>
             {isGif ? (
-              <img src={gifUrl!} alt="GIF" className="gif-msg-img" />
+              <img src={gifUrl!} alt="GIF" className="gif-msg-img" loading="lazy" />
             ) : (
               <div
                 className="markdown-body"

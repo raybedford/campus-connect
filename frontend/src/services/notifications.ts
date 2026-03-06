@@ -33,6 +33,12 @@ class NotificationService {
         await this.createNotificationChannels();
       }
 
+      // Add local notification action listener (for all platforms)
+      LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+        console.log('Local notification action (global):', notification);
+        this.handleNotificationTap(notification.notification.extra);
+      });
+
       this.initialized = true;
       console.log('✅ Notification service initialized');
       return this.permissionGranted;
@@ -232,19 +238,29 @@ class NotificationService {
   }
 
   /**
-   * Save push token to backend (implement this)
+   * Save push token to backend
    */
   private async savePushToken(token: string): Promise<void> {
     try {
-      // TODO: Send token to your Supabase backend
-      console.log('TODO: Save push token to backend:', token);
-      // Example:
+      // Store token in localStorage for web push
+      localStorage.setItem('push_token', token);
+      localStorage.setItem('push_token_platform', Capacitor.getPlatform());
+
+      // TODO: Uncomment this when push_tokens table is created in Supabase
+      // const { supabase } = await import('../lib/supabase');
+      // const { data: { user } } = await supabase.auth.getUser();
+      // if (!user) return;
+      //
       // await supabase.from('push_tokens').upsert({
-      //   user_id: currentUserId,
+      //   user_id: user.id,
       //   token: token,
       //   platform: Capacitor.getPlatform(),
       //   updated_at: new Date().toISOString(),
+      // }, {
+      //   onConflict: 'user_id,platform'
       // });
+
+      console.log('✅ Push token saved:', token.slice(0, 20) + '...');
     } catch (error) {
       console.error('Error saving push token:', error);
     }
@@ -258,10 +274,12 @@ class NotificationService {
 
     // Navigate to the relevant chat
     if (data?.type === 'chat-message' || data?.type === 'mention') {
-      const chatId = data.chatId;
-      // TODO: Implement navigation to chat
-      console.log(`Navigate to chat: ${chatId}`);
-      // Example: window.location.href = `/chat/${chatId}`;
+      const chatId = data.chatId || data.conversation_id;
+      if (chatId) {
+        console.log(`✅ Navigating to chat: ${chatId}`);
+        // Use window.location to navigate (works across all platforms)
+        window.location.href = `/conversations/${chatId}`;
+      }
     }
   }
 
