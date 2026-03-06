@@ -3,6 +3,7 @@ import { del } from 'idb-keyval';
 import { supabase } from '../lib/supabase';
 import { hasKeyPair, generateAndStoreKeyPair } from '../crypto/keyManager';
 import { publishKey } from '../api/keys';
+import { syncAllGroupKeys, clearAllGroupKeys } from '../services/groupKeyManager';
 
 interface AuthState {
   user: any | null;
@@ -44,13 +45,22 @@ export const useAuthStore = create<AuthState>((set) => ({
               const { publicKey } = await generateAndStoreKeyPair();
               await publishKey(publicKey);
             } else {
-              // Key exists on server but not this device. 
+              // Key exists on server but not this device.
               // Do NOT generate a new one, as it will break other devices.
               console.warn('E2EE Key found on server but missing locally. User needs to import backup.');
+              sessionStorage.setItem('key_import_required', 'true');
             }
           }
         } catch (err) {
           console.error('E2EE Key initialization failed during boot:', err);
+        }
+
+        // Sync all conversation group keys
+        try {
+          await syncAllGroupKeys(session.user.id);
+          console.log('✅ Group keys synced on initialization');
+        } catch (err) {
+          console.error('Failed to sync group keys on init:', err);
         }
 
         // Fetch profile with school details
@@ -59,7 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           .select('*, school:schools(*)')
           .eq('id', session.user.id)
           .single();
-        
+
         if (profile) set({ profile });
       }
     } finally {
@@ -92,6 +102,14 @@ export const useAuthStore = create<AuthState>((set) => ({
           console.error('Key generation error on auth change:', e);
         }
 
+        // Sync all conversation group keys
+        try {
+          await syncAllGroupKeys(currentUserId);
+          console.log('✅ Group keys synced on sign in');
+        } catch (err) {
+          console.error('Failed to sync group keys on sign in:', err);
+        }
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('*, school:schools(*)')
@@ -117,7 +135,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     // Clear E2EE keys on logout for security
     await del('campus_connect_private_key');
     await del('campus_connect_public_key');
-    
+    // Clear all cached group keys
+    clearAllGroupKeys();
+
     set({ user: null, profile: null, isAuthenticated: false });
   },
 }));

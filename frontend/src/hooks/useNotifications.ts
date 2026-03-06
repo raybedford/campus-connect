@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import { useNotificationStore } from '../store/notification';
 import { getConversations } from '../api/conversations';
+import { notificationService } from '../services/notifications';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface ConvInfo {
@@ -98,26 +99,28 @@ export function useNotifications() {
             timestamp: Date.now(),
           });
 
-          // Show browser notification if permission granted
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            const title = convInfo?.type === 'group' ? conversationLabel : senderName;
-            const body = isMention
-              ? `${senderName} mentioned you`
-              : convInfo?.type === 'group'
-                ? `${senderName} sent a message`
-                : 'Sent you a new message';
+          // Show native notification (works on web, mobile, and desktop)
+          const body = isMention
+            ? `${senderName} mentioned you`
+            : convInfo?.type === 'group'
+              ? `${senderName} sent a message`
+              : 'Sent you a new message';
 
-            const notification = new Notification(title, {
+          if (isMention) {
+            // Show mention notification with higher priority
+            notificationService.showMentionNotification(
+              senderName,
               body,
-              icon: '/vite.svg',
-              tag: `msg-${msg.conversation_id}`,
-            });
-
-            notification.onclick = () => {
-              window.focus();
-              navigate(`/conversations/${msg.conversation_id}`);
-              notification.close();
-            };
+              msg.conversation_id
+            );
+          } else {
+            // Show regular chat notification
+            notificationService.showChatNotification(
+              senderName,
+              body,
+              msg.conversation_id,
+              convInfo?.type === 'group' ? conversationLabel : undefined
+            );
           }
         }
       )
@@ -132,6 +135,9 @@ export function useNotifications() {
     let cancelled = false;
 
     const setup = async () => {
+      // Initialize native notifications on app startup
+      await notificationService.initialize();
+
       await buildChannel();
       if (cancelled) return;
 

@@ -42,3 +42,19 @@ export async function hasKeyPair(): Promise<boolean> {
   const sk = await get<string>(PRIVATE_KEY_STORE);
   return !!sk;
 }
+
+export async function getPublicKey(): Promise<Uint8Array | null> {
+  const publicKeyB64 = await get<string>(PUBLIC_KEY_STORE);
+  if (!publicKeyB64) return null;
+  return fromBase64(publicKeyB64);
+}
+
+export async function importKeypair(secretKeyB64: string): Promise<void> {
+  // Derive public key from secret key
+  const secretKey = fromBase64(secretKeyB64);
+  const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+  const publicKeyB64 = toBase64(keyPair.publicKey);
+
+  await set(PRIVATE_KEY_STORE, secretKeyB64);
+  await set(PUBLIC_KEY_STORE, publicKeyB64);
+}

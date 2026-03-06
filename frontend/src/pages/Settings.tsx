@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/auth';
 import { updateMe } from '../api/auth';
 import { supabase } from '../lib/supabase';
 import CampusBuilding from '../components/CampusBuilding';
+import QRKeyTransfer from '../components/QRKeyTransfer';
 
 import { getStoredKeyPair } from '../crypto/keyManager';
 
@@ -37,6 +38,8 @@ export default function Settings() {
   const [mySecretKey, setMySecretKey] = useState('');
   const [myPublicKey, setMyPublicKey] = useState('');
   const [importKey, setImportKey] = useState('');
+  const [showQRTransfer, setShowQRTransfer] = useState(false);
+  const [showKeyImportWarning, setShowKeyImportWarning] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -55,6 +58,12 @@ export default function Settings() {
         setMyPublicKey(keys.publicKey);
       }
     });
+
+    // Check if user needs to import keys (coming from auth flow)
+    if (sessionStorage.getItem('key_import_required')) {
+      setShowKeyImportWarning(true);
+      sessionStorage.removeItem('key_import_required');
+    }
   }, [profile]);
 
   const handleSyncKey = async () => {
@@ -214,14 +223,23 @@ export default function Settings() {
                 <p style={{ fontSize: '0.6rem', color: 'var(--cream-dim)', marginTop: '0.5rem' }}>
                   Public Key ID: <span style={{ fontFamily: 'var(--mono)' }}>{myPublicKey.substring(0, 12)}...</span>
                 </p>
-                <button 
-                  className="btn-nav-gold" 
-                  onClick={handleSyncKey} 
-                  style={{ marginTop: '0.75rem', fontSize: '0.65rem', padding: '0.3rem 0.8rem' }}
-                  disabled={loading}
-                >
-                  ↻ Sync Key to Server
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  <button
+                    className="btn-nav-gold"
+                    onClick={handleSyncKey}
+                    style={{ fontSize: '0.65rem', padding: '0.3rem 0.8rem' }}
+                    disabled={loading}
+                  >
+                    ↻ Sync Key to Server
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowQRTransfer(true)}
+                    style={{ fontSize: '0.65rem', padding: '0.3rem 0.8rem' }}
+                  >
+                    📱 QR Transfer
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ marginBottom: '1.5rem', border: '1px dashed var(--gold-dim)', padding: '1rem', borderRadius: '8px' }}>
@@ -252,6 +270,136 @@ export default function Settings() {
               </div>
             </div>
           </div>
+
+          {/* Key Import Warning Modal */}
+          {showKeyImportWarning && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.9)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1001,
+              padding: '1rem'
+            }}>
+              <div style={{
+                background: 'var(--cream)',
+                padding: '2rem',
+                borderRadius: '12px',
+                maxWidth: '500px',
+                width: '100%',
+                position: 'relative',
+                border: '3px solid #f44336'
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🔐</div>
+                  <h2 style={{ color: '#f44336', marginBottom: '0.5rem' }}>Action Required: Import Your Keys</h2>
+                  <p style={{ color: 'var(--black)', fontSize: '0.95rem' }}>
+                    Your encryption keys are on the server but not on this device.
+                    You must import your keys to read encrypted messages.
+                  </p>
+                </div>
+
+                <div style={{
+                  background: '#fff3cd',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  marginBottom: '1.5rem',
+                  border: '1px solid #ffc107'
+                }}>
+                  <p style={{ color: '#856404', fontSize: '0.9rem', margin: 0 }}>
+                    <strong>⚠️ Without your keys:</strong><br />
+                    • You cannot read encrypted messages<br />
+                    • You cannot send encrypted messages<br />
+                    • You cannot access encrypted files
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowKeyImportWarning(false);
+                    setShowQRTransfer(true);
+                  }}
+                  className="btn btn-primary"
+                  style={{
+                    width: '100%',
+                    marginBottom: '0.75rem',
+                    background: '#4CAF50'
+                  }}
+                >
+                  📱 Import Keys from Another Device
+                </button>
+
+                <button
+                  onClick={() => setShowKeyImportWarning(false)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: 'transparent',
+                    border: '1px solid var(--black-border)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    color: 'var(--black)'
+                  }}
+                >
+                  I'll do this later
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* QR Code Transfer Modal */}
+          {showQRTransfer && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '1rem'
+            }}>
+              <div style={{
+                background: 'var(--cream)',
+                padding: '2rem',
+                borderRadius: '12px',
+                maxWidth: '600px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflow: 'auto',
+                position: 'relative'
+              }}>
+                <button
+                  onClick={() => setShowQRTransfer(false)}
+                  style={{
+                    position: 'absolute',
+                    top: '1rem',
+                    right: '1rem',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.5rem',
+                    cursor: 'pointer',
+                    color: 'var(--black)'
+                  }}
+                >
+                  ×
+                </button>
+                <h2 style={{ color: 'var(--black)', marginBottom: '1rem' }}>Transfer Keys to New Device</h2>
+                <QRKeyTransfer onImportComplete={() => {
+                  setShowQRTransfer(false);
+                  window.location.reload(); // Reload to sync keys
+                }} />
+              </div>
+            </div>
+          )}
         </section>
 
         <section style={{ marginBottom: '2rem' }}>

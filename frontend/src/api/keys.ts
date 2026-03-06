@@ -32,10 +32,25 @@ export async function getBatchPublicKeys(userIds: string[]): Promise<any[]> {
     .in('user_id', userIds);
 
   if (error) throw error;
-  
+
   // Map to the expected format for the frontend
   return (data || []).map(k => ({
     user: k.user_id,
     publicKeyB64: k.public_key
+  }));
+}
+
+// Alias for group encryption compatibility
+export async function getPublicKeys(userIds: string[]): Promise<Array<{user_id: string, public_key_b64: string}>> {
+  const { data, error } = await supabase
+    .from('public_keys')
+    .select('user_id, public_key')
+    .in('user_id', userIds);
+
+  if (error) throw error;
+
+  return (data || []).map(k => ({
+    user_id: k.user_id,
+    public_key_b64: k.public_key
   }));
 }

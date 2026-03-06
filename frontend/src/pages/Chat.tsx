@@ -11,6 +11,8 @@ import { decryptMessage } from '../crypto/encryption';
 import { getPrivateKey } from '../crypto/keyManager';
 import { uploadFile, downloadFile, deleteFile } from '../api/files';
 import { decryptFile } from '../crypto/fileEncryption';
+import { encryptMessageWithGroupKey, encryptFileWithGroupKey, decryptFileWithGroupKey, decryptMessageWithGroupKey } from '../crypto/groupEncryption';
+import { getGroupKey } from '../services/groupKeyManager';
 import type { Conversation } from '../types';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
@@ -210,18 +212,50 @@ export default function Chat() {
           continue;
         }
 
-        // Check if content is old encrypted format (JSON array with ciphertext)
+        // Check if content is group-encrypted or old encrypted format
         let isOldEncrypted = false;
+        let isGroupEncrypted = false;
+        let encryptedData: any = null;
+
         try {
           const parsed = JSON.parse(msg.content);
-          if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].ciphertext_b64 || parsed[0].ciphertextB64)) {
+
+          // Check for new group encryption format
+          if (parsed.encrypted === true && parsed.ciphertext_b64 && parsed.nonce_b64) {
+            isGroupEncrypted = true;
+            encryptedData = parsed;
+          }
+          // Check for old per-recipient encryption
+          else if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].ciphertext_b64 || parsed[0].ciphertextB64)) {
             isOldEncrypted = true;
           }
         } catch {
           // Not valid JSON — it's plaintext
         }
 
-        if (isOldEncrypted) {
+        if (isGroupEncrypted) {
+          // New group key encryption: decrypt with group key
+          try {
+            const groupKey = await getGroupKey(id!, user.id);
+            if (groupKey) {
+              const text = decryptMessageWithGroupKey(
+                encryptedData.ciphertext_b64,
+                encryptedData.nonce_b64,
+                groupKey
+              );
+              results.push({ ...msg, decrypted_text: text });
+              continue;
+            } else {
+              console.warn('No group key available for message:', msg.id);
+              results.push({ ...msg, decrypted_text: '[Encrypted - No key available]' });
+              continue;
+            }
+          } catch (err) {
+            console.error('Group key decryption failed:', msg.id, err);
+            results.push({ ...msg, decrypted_text: '[Decryption failed]' });
+            continue;
+          }
+        } else if (isOldEncrypted) {
           // Old encrypted format: best-effort decryption
           try {
             const payloads = JSON.parse(msg.content);
@@ -304,15 +338,31 @@ export default function Chat() {
     if (!id || !user || !conversation) return;
 
     try {
-      // Send plaintext — no encryption
-      const msg = await sendMessage(id, 'text', text, undefined, mentionedUserIds);
+      // Get group key and encrypt message
+      const groupKey = await getGroupKey(id, user.id);
+
+      let contentToSend = text;
+      if (groupKey) {
+        // Encrypt with group key
+        const { ciphertext_b64, nonce_b64 } = encryptMessageWithGroupKey(text, groupKey);
+        contentToSend = JSON.stringify({
+          encrypted: true,
+          ciphertext_b64,
+          nonce_b64,
+        });
+        console.log('🔒 Message encrypted with group key');
+      } else {
+        console.warn('⚠️ No group key found, sending plaintext');
+      }
+
+      const msg = await sendMessage(id, 'text', contentToSend, undefined, mentionedUserIds);
 
       // Stop typing indicator immediately on send
       sendTyping(false);
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
 
-      // Optimistic UI update
-      const optimisticMsg = { ...msg, decrypted_text: text };
+      // Optimistic UI update (show decrypted version locally)
+      const optimisticMsg = { ...msg, decrypted_text: text, content: contentToSend };
       addMessage(id, optimisticMsg);
       setDisplayMessages(prev => [...prev, optimisticMsg]);
     } catch (err) {
@@ -324,14 +374,30 @@ export default function Chat() {
     if (!id || !user || !conversation) return;
 
     try {
-      // Edit with plaintext — no encryption
-      await editMessage(message.id, newText);
+      // Get group key and encrypt edited message
+      const groupKey = await getGroupKey(id, user.id);
+
+      let contentToSend = newText;
+      if (groupKey) {
+        // Encrypt with group key
+        const { ciphertext_b64, nonce_b64 } = encryptMessageWithGroupKey(newText, groupKey);
+        contentToSend = JSON.stringify({
+          encrypted: true,
+          ciphertext_b64,
+          nonce_b64,
+        });
+        console.log('🔒 Edited message encrypted with group key');
+      } else {
+        console.warn('⚠️ No group key found, sending plaintext');
+      }
+
+      await editMessage(message.id, contentToSend);
 
       // Optimistic UI update
       setDisplayMessages(prev =>
         prev.map(m =>
           m.id === message.id
-            ? { ...m, content: newText, decrypted_text: newText, edited_at: new Date().toISOString() }
+            ? { ...m, content: contentToSend, decrypted_text: newText, edited_at: new Date().toISOString() }
             : m
         )
       );
@@ -395,18 +461,59 @@ export default function Chat() {
 
     setUploading(true);
     try {
-      // Upload raw file (no encryption)
-      const { path } = await uploadFile(file, id, file.name);
-      const contentPayload = { filename: file.name };
-      const msg = await sendMessage(id, 'file', JSON.stringify(contentPayload), path);
+      // Get group key
+      const groupKey = await getGroupKey(id, user.id);
 
-      // Stop typing
-      sendTyping(false);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (groupKey) {
+        // Read file as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        const fileData = new Uint8Array(arrayBuffer);
 
-      const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
-      addMessage(id, optimisticMsg);
-      setDisplayMessages(prev => [...prev, optimisticMsg]);
+        // Encrypt file with group key
+        const { encryptedFile, nonce_b64 } = encryptFileWithGroupKey(fileData, groupKey);
+
+        // Create a blob from encrypted data (convert Uint8Array to regular Array)
+        const encryptedArray = Array.from(encryptedFile);
+        const encryptedBlob = new Blob([new Uint8Array(encryptedArray)], { type: 'application/octet-stream' });
+        const encryptedFileObj = new File([encryptedBlob], file.name + '.enc', { type: 'application/octet-stream' });
+
+        // Upload encrypted file
+        const { path: uploadedPath } = await uploadFile(encryptedFileObj, id, file.name + '.enc');
+
+        // Store encryption metadata in message content
+        const contentPayload = {
+          filename: file.name,
+          encrypted: true,
+          nonce_b64,
+          original_type: file.type,
+        };
+
+        const msg = await sendMessage(id, 'file', JSON.stringify(contentPayload), uploadedPath);
+
+        console.log('🔒 File encrypted and uploaded');
+
+        // Stop typing
+        sendTyping(false);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+        const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
+        addMessage(id, optimisticMsg);
+        setDisplayMessages(prev => [...prev, optimisticMsg]);
+      } else {
+        // No group key, upload plaintext
+        console.warn('⚠️ No group key found, uploading file unencrypted');
+        const { path } = await uploadFile(file, id, file.name);
+        const contentPayload = { filename: file.name };
+        const msg = await sendMessage(id, 'file', JSON.stringify(contentPayload), path);
+
+        // Stop typing
+        sendTyping(false);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+        const optimisticMsg = { ...msg, decrypted_text: `[File: ${file.name}]` };
+        addMessage(id, optimisticMsg);
+        setDisplayMessages(prev => [...prev, optimisticMsg]);
+      }
     } catch (err: any) {
       console.error('File upload failed:', err);
       alert(`File upload failed: ${err?.message || 'Unknown error'}`);
@@ -422,8 +529,30 @@ export default function Chat() {
       const blob = await downloadFile(msg.file_url);
       let downloadBlob = blob;
 
+      // Try to parse content to check if file is encrypted
+      let contentData;
+      try {
+        contentData = JSON.parse(msg.content || '{}');
+      } catch {
+        contentData = {};
+      }
+
+      // Group key encrypted file: decrypt before download
+      if (contentData.encrypted && contentData.nonce_b64) {
+        const groupKey = await getGroupKey(id!, user.id);
+        if (groupKey) {
+          const encryptedData = new Uint8Array(await blob.arrayBuffer());
+          const decryptedData = decryptFileWithGroupKey(encryptedData, groupKey);
+          const decryptedArray = Array.from(decryptedData);
+          downloadBlob = new Blob([new Uint8Array(decryptedArray)], { type: contentData.original_type || 'application/octet-stream' });
+          console.log('🔓 File decrypted with group key');
+        } else {
+          alert('Cannot decrypt file: No group key available');
+          return;
+        }
+      }
       // Legacy encrypted file: decrypt before download
-      if (msg._legacyEncrypted && msg._legacyKeyPayload) {
+      else if (msg._legacyEncrypted && msg._legacyKeyPayload) {
         const encryptedData = new Uint8Array(await blob.arrayBuffer());
         const secretKey = await getPrivateKey();
         const senderPubKey = memberKeys[msg._legacySenderId || msg.sender_id];

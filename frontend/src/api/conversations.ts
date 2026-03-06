@@ -1,5 +1,10 @@
 import { supabase } from '../lib/supabase';
 import type { Conversation, Profile } from '../types';
+import { generateGroupKey, wrapGroupKeyForMembers } from '../crypto/groupEncryption';
+import { getPrivateKey } from '../crypto/keyManager';
+import { getPublicKeys } from './keys';
+import { saveWrappedGroupKeys } from './conversationKeys';
+import { cacheGroupKey } from '../services/groupKeyManager';
 
 export async function getConversations(): Promise<Conversation[]> {
   const { data, error } = await supabase
@@ -98,7 +103,58 @@ export async function createConversation(
 
   if (convError) throw convError;
 
-  // 2. Add members
+  // 2. Generate and distribute group key for E2EE
+  try {
+    // Generate a new group key for this conversation
+    const groupKey = generateGroupKey();
+    console.log(`🔑 Generated group key for conversation ${conversation.id}`);
+
+    // Get private key to wrap the group key
+    const privateKey = await getPrivateKey();
+    if (!privateKey) {
+      console.warn('No private key available, skipping E2EE setup');
+    } else {
+      // Get public keys for all members
+      const publicKeys = await getPublicKeys(allMembers);
+      const membersWithKeys = allMembers
+        .map(userId => {
+          const pubKey = publicKeys.find((k: any) => k.user_id === userId);
+          return pubKey ? {
+            userId,
+            publicKeyB64: pubKey.public_key_b64
+          } : null;
+        })
+        .filter(Boolean) as Array<{ userId: string; publicKeyB64: string }>;
+
+      if (membersWithKeys.length === 0) {
+        console.warn('No public keys found for members, E2EE will not work');
+      } else {
+        // Wrap group key for each member
+        const wrappedKeys = wrapGroupKeyForMembers(groupKey, membersWithKeys, privateKey);
+
+        // Save wrapped keys to database
+        await saveWrappedGroupKeys(
+          wrappedKeys.map(wk => ({
+            conversation_id: conversation.id,
+            user_id: wk.user_id,
+            wrapped_key_b64: wk.wrapped_key_b64,
+            nonce_b64: wk.nonce_b64,
+            wrapped_by_user_id: user.id,
+          }))
+        );
+
+        // Cache the group key locally for immediate use
+        cacheGroupKey(conversation.id, groupKey);
+
+        console.log(`✅ Distributed group key to ${wrappedKeys.length} members`);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to setup E2EE for conversation:', error);
+    // Don't fail conversation creation if E2EE setup fails
+  }
+
+  // 3. Add members
   const memberEntries = allMembers.map(uid => ({
     conversation_id: conversation.id,
     user_id: uid
@@ -151,10 +207,12 @@ export async function getSchoolDirectory(): Promise<Profile[]> {
 
 export async function addMemberToConversation(
   conversationId: string,
-  newMemberId: string,
-  reEncryptedMessages?: { messageId: string; content: string }[]
+  newMemberId: string
 ): Promise<void> {
-  // 1. Add member
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // 1. Add member to conversation
   const { error: memberError } = await supabase
     .from('conversation_members')
     .insert({
@@ -164,20 +222,68 @@ export async function addMemberToConversation(
 
   if (memberError) throw memberError;
 
-  // 2. Update conversation type to 'group' since it now has 3+ people
-  await supabase
-    .from('conversations')
-    .update({ type: 'group' })
-    .eq('id', conversationId);
+  // 2. Distribute group key to new member
+  try {
+    // Get the group key for this conversation
+    const { getGroupKey } = await import('../services/groupKeyManager');
+    const groupKey = await getGroupKey(conversationId, user.id);
 
-  // 3. If we have re-encrypted messages, update them
-  if (reEncryptedMessages && reEncryptedMessages.length > 0) {
-    // Perform updates in a loop (or batch if possible, but RPC is cleaner for batch)
-    for (const item of reEncryptedMessages) {
-      await supabase
-        .from('messages')
-        .update({ content: item.content })
-        .eq('id', item.messageId);
+    if (!groupKey) {
+      console.warn('No group key found for conversation, new member won\'t be able to decrypt messages');
+      return;
     }
+
+    // Get new member's public key
+    const newMemberKey = await getPublicKeys([newMemberId]);
+    if (newMemberKey.length === 0 || !newMemberKey[0].public_key_b64) {
+      console.warn('New member has no public key, cannot distribute group key');
+      return;
+    }
+
+    // Get current user's private key to wrap the group key
+    const privateKey = await getPrivateKey();
+    if (!privateKey) {
+      console.warn('No private key available to wrap group key');
+      return;
+    }
+
+    // Wrap the group key for the new member
+    const wrappedKey = wrapGroupKeyForMembers(
+      groupKey,
+      [{
+        userId: newMemberId,
+        publicKeyB64: newMemberKey[0].public_key_b64
+      }],
+      privateKey
+    );
+
+    // Save the wrapped key
+    await saveWrappedGroupKeys(
+      wrappedKey.map(wk => ({
+        conversation_id: conversationId,
+        user_id: wk.user_id,
+        wrapped_key_b64: wk.wrapped_key_b64,
+        nonce_b64: wk.nonce_b64,
+        wrapped_by_user_id: user.id,
+      }))
+    );
+
+    console.log(`✅ Distributed group key to new member ${newMemberId}`);
+  } catch (error) {
+    console.error('Failed to distribute group key to new member:', error);
+    // Don't fail the member addition if key distribution fails
+  }
+
+  // 3. Update conversation type to 'group' since it now has 3+ people
+  const { data: members } = await supabase
+    .from('conversation_members')
+    .select('user_id')
+    .eq('conversation_id', conversationId);
+
+  if (members && members.length >= 3) {
+    await supabase
+      .from('conversations')
+      .update({ type: 'group' })
+      .eq('id', conversationId);
   }
 }
