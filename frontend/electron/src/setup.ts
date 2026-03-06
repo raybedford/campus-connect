@@ -224,8 +224,8 @@ export function setupContentSecurityPolicy(customScheme: string): void {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           electronIsDev
-            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data: https:; style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com; font-src ${customScheme}://* data: https://fonts.gstatic.com; img-src ${customScheme}://* data: https:`
-            : `default-src ${customScheme}://* 'unsafe-inline' data: https:; style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com; font-src ${customScheme}://* data: https://fonts.gstatic.com; img-src ${customScheme}://* data: https:`,
+            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data: https:; connect-src ${customScheme}://* https: wss:; style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com; font-src ${customScheme}://* data: https://fonts.gstatic.com; img-src ${customScheme}://* data: https:`
+            : `default-src ${customScheme}://* 'unsafe-inline' data: https:; connect-src ${customScheme}://* https: wss:; style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com; font-src ${customScheme}://* data: https://fonts.gstatic.com; img-src ${customScheme}://* data: https:`,
         ],
       },
     });
